@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Product, Post, Inventory, Movement, Settings } from './types'
 import { demoProducts, demoPosts, defaultSettings } from './demo'
-import { supabase } from './lib/supabase'
+import { supabase, callFunction } from './lib/supabase'
 type DataState = { products: Product[]; posts: Post[]; inventory: Inventory[]; movements: Movement[]; settings: Settings }
 const initial: DataState = { products: [], posts: [], inventory: [], movements: [], settings: defaultSettings }
 type DataContext = DataState & { loading: boolean; error: string; demo: boolean; reload: (admin?: boolean) => Promise<void>; enterDemo: () => void; save: (table: string, value: object) => Promise<void>; setPublished: (table: 'products' | 'posts', id: string, published: boolean) => Promise<void>; remove: (table: string, id: string) => Promise<void>; adjust: (id: string, delta: number, note: string) => Promise<void> }
@@ -29,6 +29,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } catch { setError(admin ? 'De gegevens konden niet worden geladen. Controleer de verbinding en of het Supabase-schema is geïnstalleerd.' : 'Het aanbod en de berichten zijn momenteel niet beschikbaar. Probeer het later opnieuw.') } finally { setLoading(false) }
   }, [demo, demoState])
   useEffect(() => { void reload() }, [reload])
+  // Emails confirmed journal subscribers about a newly published post (server ignores repeats).
+  async function announce(postId: string) {
+    try { await callFunction('journal', { action: 'notify', postId }, 'onbekende fout') }
+    catch (e) { throw new Error(`Het bericht is gepubliceerd, maar de e-mail aan abonnees is niet verstuurd (${(e as Error).message}). Sla het bericht opnieuw op om het nog eens te proberen.`) }
+  }
   function updateDemo(next: DataState) { localStorage.setItem('lotusbloem-demo-v1', JSON.stringify(next)); setData(next) }
   const value: DataContext = { ...data, demo, loading, error, reload,
     enterDemo: () => { setDemo(true); setData(demoState()) },
@@ -50,6 +55,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const { error } = result
       if (error) throw new Error(error.message)
       await reload(true)
+      if (table === 'posts' && (row as Post).published && !(row as Post).notified_at) await announce((row as Post).id)
     },
     setPublished: async (table, id, published) => {
       if (!demo) {
@@ -62,6 +68,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (demo) localStorage.setItem('lotusbloem-demo-v1', JSON.stringify(next))
         return next
       })
+      if (!demo && table === 'posts' && published && !data.posts.find(p => p.id === id)?.notified_at) { await announce(id); await reload(true) }
     },
     remove: async (table, id) => {
       if (demo) { const next = { ...data }; if (table === 'products') { next.products = data.products.filter(x => x.id !== id); next.inventory = data.inventory.filter(x => x.product_id !== id); next.movements = data.movements.filter(x => x.product_id !== id) } else next.posts = data.posts.filter(x => x.id !== id); updateDemo(next); return }

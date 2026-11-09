@@ -75,6 +75,28 @@ Controleer na activatie een echte upload met je beheeraccount. Lokaal kun je de 
 deno test supabase/functions/upload-image/handler_test.ts
 ```
 
+## Wachtwoord vergeten en wijzigen
+
+Op het inlogscherm staat **Wachtwoord vergeten?**. Supabase mailt dan een link die terugkeert naar `?herstel=1`, waar je een nieuw wachtwoord kiest. Ingelogd wijzig je je wachtwoord onder **Beheer → Account** (eerst je huidige wachtwoord).
+
+Eenmalig instellen in Supabase onder **Authentication → URL Configuration**: zet de **Site URL** op het publieke adres en voeg dat adres toe bij **Redirect URLs** (bijvoorbeeld `https://jouwdomein.be/**` en voor lokaal `http://127.0.0.1:5173/**`). De standaard-e-mailserver van Supabase verstuurt maar enkele mails per uur; stel voor gebruik in productie een eigen SMTP-server in onder **Authentication → Emails**.
+
+## Journal per e-mail
+
+Bezoekers kunnen zich op `/journal` en onder elk bericht inschrijven. Ze krijgen eerst een bevestigingsmail (dubbele opt-in); pas na bevestiging ontvangen ze meldingen. Elke mail bevat een persoonlijke afmeldlink. Zodra een bericht voor het eerst gepubliceerd wordt (bij opslaan of via de schakelaar), krijgen alle bevestigde abonnees één e-mail met titel, introductie en link. Een bericht wordt nooit twee keer gemeld; verbergen en opnieuw publiceren stuurt niets opnieuw. De e-mails worden verstuurd via [Resend](https://resend.com) door de edge function `journal`.
+
+1. Voer [supabase/migrations/002_journal_subscribers.sql](supabase/migrations/002_journal_subscribers.sql) uit in de SQL Editor. Bestaande gepubliceerde berichten worden als al gemeld gemarkeerd.
+2. Maak een Resend-account, verifieer je domein en maak een API-sleutel.
+3. Vul in `supabase/functions/.env.local` de waarden `RESEND_API_KEY`, `MAIL_FROM` (afzender op het geverifieerde domein) en `SITE_URL` (publiek adres zonder `#`) in, zie `.env.example`.
+4. Activeer:
+
+```sh
+npx supabase secrets set --env-file supabase/functions/.env.local --project-ref blpuugluwakptppjnsmi
+npx supabase functions deploy journal --project-ref blpuugluwakptppjnsmi
+```
+
+Abonnees staan in de tabel `subscribers`; alleen de edge function kan ze toevoegen of verwijderen. In **Berichten** zie je hoeveel bevestigde abonnees er zijn. Lukt het versturen niet, dan zie je een melding en probeer je het opnieuw door het bericht nog eens op te slaan. Testen zonder echte mails: `deno test supabase/functions/journal/handler_test.ts`.
+
 ## Publicatie
 
 `pnpm build` maakt `dist/`. De workflow `.github/workflows/deploy.yml` bouwt en publiceert automatisch na een push naar `main`.

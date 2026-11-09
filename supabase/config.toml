@@ -2,3 +2,7 @@
 # The handler validates the user with Supabase Auth and checks is_admin itself.
 # This also supports projects using the newer signing keys.
 verify_jwt = false
+
+[functions.journal]
+# Public sign-up/confirm/unsubscribe; the notify action checks the user token and is_admin itself.
+verify_jwt = false

@@ -28,8 +28,8 @@ jobs:
         env:
           # Beide waarden zijn publieke frontendconfiguratie, geen beheergeheimen.
           # Repository-variabelen kunnen deze standaardwaarden overschrijven.
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://blpuugluwakptppjnsmi.supabase.co' }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || 'sb_publishable_NOOxbCH97imHdRZQ0Tej_A_Wl-t1ED_' }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://ubgunugdegfzqqidsxcu.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || 'sb_publishable_uR0HWMlneWbuwe9T6rvPEw_NMXOVJJU' }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
