@@ -67,8 +67,8 @@ Activeer de functie eenmalig vanuit de projectmap:
 
 ```sh
 npx supabase login
-npx supabase secrets set --env-file supabase/functions/.env.local --project-ref blpuugluwakptppjnsmi
-npx supabase functions deploy upload-image --project-ref blpuugluwakptppjnsmi
+npx supabase secrets set --env-file supabase/functions/.env.local --project-ref ubgunugdegfzqqidsxcu
+npx supabase functions deploy upload-image --project-ref ubgunugdegfzqqidsxcu
 ```
 
 Gebruik bij een ander Supabase-project diens project-ID. De functiespecifieke `verify_jwt = false` in `supabase/config.toml` laat de functie zelf het gebruiker-token controleren via Supabase Auth. De functie controleert daarna `is_admin` met dezelfde gebruikerrechten, voordat een bestand naar ImgBB wordt verstuurd. De API-sleutel, ImgBB-foutdetails en verwijderlinks worden niet teruggestuurd naar de browser.
@@ -97,8 +97,8 @@ Bezoekers kunnen zich op `/journal` en onder elk bericht inschrijven. Ze krijgen
 4. Activeer:
 
 ```sh
-npx supabase secrets set --env-file supabase/functions/.env.local --project-ref blpuugluwakptppjnsmi
-npx supabase functions deploy journal --project-ref blpuugluwakptppjnsmi
+npx supabase secrets set --env-file supabase/functions/.env.local --project-ref ubgunugdegfzqqidsxcu
+npx supabase functions deploy journal --project-ref ubgunugdegfzqqidsxcu
 ```
 
 Abonnees staan in de tabel `subscribers`; alleen de edge function kan ze toevoegen of verwijderen. In **Berichten** zie je hoeveel bevestigde abonnees er zijn. Lukt het versturen niet, dan zie je een melding en probeer je het opnieuw door het bericht nog eens op te slaan. Testen zonder echte mails: `deno test supabase/functions/journal/handler_test.ts`.

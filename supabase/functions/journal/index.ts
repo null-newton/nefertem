@@ -7,4 +7,5 @@ Deno.serve(createJournalHandler({
   resendKey: Deno.env.get('RESEND_API_KEY') ?? '',
   mailFrom: Deno.env.get('MAIL_FROM') ?? '',
   siteUrl: Deno.env.get('SITE_URL') ?? '',
+  replyTo: Deno.env.get('MAIL_REPLY_TO') ?? '',
 }))

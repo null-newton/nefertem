@@ -2,7 +2,7 @@ const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 const resendAfterMs = 10 * 60 * 1000
-export type Config = { supabaseUrl: string; anonKey: string; serviceKey: string; resendKey: string; mailFrom: string; siteUrl: string }
+export type Config = { supabaseUrl: string; anonKey: string; serviceKey: string; resendKey: string; mailFrom: string; siteUrl: string; replyTo?: string }
 type Subscriber = { email: string; token: string; confirmed: boolean; confirm_sent_at: string | null }
 type Post = { id: string; title: string; excerpt: string; kind: string; image_url: string }
 const esc = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!))
@@ -19,6 +19,8 @@ export function createJournalHandler(c: Config, f: typeof fetch = fetch) {
   const rows = async <T>(r: Response): Promise<T[]> => { if (!r.ok) throw new Error(`db ${r.status}`); return await r.json() }
   const send = (emails: object[]) => f('https://api.resend.com/emails/batch', { method: 'POST', signal: AbortSignal.timeout(20000), headers: { Authorization: `Bearer ${c.resendKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(emails) })
   const unsubscribeLink = (token: string) => link(`afmelden=${token}`)
+  // A real reply address and a plain-text part both help keep the mails out of spam folders.
+  const sender = { from: c.mailFrom, ...(c.replyTo ? { reply_to: c.replyTo } : {}) }
 
   async function subscribe(raw: unknown, honeypot: unknown) {
     const email = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
@@ -36,7 +38,7 @@ export function createJournalHandler(c: Config, f: typeof fetch = fetch) {
       ;[sub] = await rows<Subscriber>(r)
     }
     const body = `<h1 style="font-family:Georgia,serif;font-weight:400;font-size:32px;margin:0 0 16px">Bevestig je inschrijving</h1><p style="font-size:15px;line-height:1.7;margin:0 0 26px">Fijn dat je het journal van Nefertem wilt volgen. Bevestig je e-mailadres en je krijgt een berichtje zodra er een nieuw verhaal of praktijknieuws verschijnt.</p>${button(link(`bevestig=${sub.token}`), 'Inschrijving bevestigen')}`
-    const r = await send([{ from: c.mailFrom, to: [email], subject: 'Bevestig je inschrijving op het Nefertem journal', html: layout(body, 'Heb je je niet ingeschreven? Dan mag je deze e-mail negeren. Zonder bevestiging ontvang je niets.') }])
+    const r = await send([{ ...sender, to: [email], subject: 'Bevestig je inschrijving op het Nefertem journal', text: `Fijn dat je het journal van Nefertem wilt volgen. Bevestig je e-mailadres via deze link:\n\n${link(`bevestig=${sub.token}`)}\n\nHeb je je niet ingeschreven? Dan mag je deze e-mail negeren. Zonder bevestiging ontvang je niets.`, html: layout(body, 'Heb je je niet ingeschreven? Dan mag je deze e-mail negeren. Zonder bevestiging ontvang je niets.') }])
     if (!r.ok) return [502, { error: 'De bevestigingsmail kon niet worden verstuurd. Probeer later opnieuw.' }] as const
     return ok
   }
@@ -68,9 +70,10 @@ export function createJournalHandler(c: Config, f: typeof fetch = fetch) {
     const url = `${site}#/journal/${post.id}`
     const image = /^https:\/\//.test(post.image_url) ? `<img src="${esc(post.image_url)}" alt="" width="496" style="width:100%;max-width:496px;height:auto;border-radius:3px;margin:0 0 24px;display:block">` : ''
     const html = (token: string) => layout(`<div style="font-size:10px;letter-spacing:1.5px;margin:0 0 12px">${post.kind === 'blog' ? 'NIEUW IN HET JOURNAL' : 'PRAKTIJKNIEUWS'}</div>${image}<h1 style="font-family:Georgia,serif;font-weight:400;font-size:32px;line-height:1.1;margin:0 0 16px">${esc(post.title)}</h1><p style="font-size:15px;line-height:1.7;margin:0 0 26px">${esc(post.excerpt)}</p>${button(url, 'Lees verder')}`, `Je ontvangt deze e-mail omdat je je hebt ingeschreven op het journal van Nefertem. <a href="${esc(unsubscribeLink(token))}" style="color:#777b6c">Afmelden</a>`)
+    const text = (token: string) => `${post.title}\n\n${post.excerpt}\n\nLees verder: ${url}\n\n--\nJe ontvangt deze e-mail omdat je je hebt ingeschreven op het journal van Nefertem. Afmelden: ${unsubscribeLink(token)}`
     let sent = 0
     for (let i = 0; i < subs.length; i += 100) {
-      const batch = subs.slice(i, i + 100).map(s => ({ from: c.mailFrom, to: [s.email], subject: post.title, html: html(s.token), headers: { 'List-Unsubscribe': `<${unsubscribeLink(s.token)}>` } }))
+      const batch = subs.slice(i, i + 100).map(s => ({ ...sender, to: [s.email], subject: post.title, html: html(s.token), text: text(s.token), headers: { 'List-Unsubscribe': `<${unsubscribeLink(s.token)}>` } }))
       if ((await send(batch)).ok) sent += batch.length
     }
     // Nothing went out: release the claim so publishing again retries.
