@@ -1,0 +1,246 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+
+export const languages = ['nl', 'fr', 'en'] as const
+export type Lang = typeof languages[number]
+const locales: Record<Lang, string> = { nl: 'nl-BE', fr: 'fr-BE', en: 'en-GB' }
+const storageKey = 'nefertem-lang'
+
+const nl = {
+  langName: 'Nederlands',
+  langLabel: 'Taal',
+  meta: { title: 'Nefertem — Zorg die je laat bloeien', adminTitle: 'Beheer — Nefertem', description: 'Nefertem — persoonlijke schoonheidsverzorging en thuisverpleging. Een moment van rust, met aandacht voor jou.' },
+  common: { onRequest: 'Op aanvraag', save: 'Opslaan', saving: 'Opslaan…', cancel: 'Annuleren', delete: 'Verwijderen', deleting: 'Verwijderen…', wait: 'Even geduld…', retry: 'Opnieuw proberen', skip: 'Naar de inhoud', noImage: 'Geen afbeelding', minutes: (n: number) => `${n} minuten`, closeWindow: 'Venster sluiten', search: 'Zoeken op naam…', supabaseMissing: 'Supabase is niet ingesteld.' },
+  categories: { schoonheid: 'Schoonheid', thuisverpleging: 'Thuisverpleging', verzorging: 'Verzorgingsproducten' },
+  kinds: { dienst: 'Dienst', product: 'Product', serviceLabel: 'BEHANDELING', productLabel: 'PRODUCT', blog: 'Blog', aankondiging: 'Aankondiging', blogLabel: 'INSPIRATIE', newsLabel: 'PRAKTIJKNIEUWS' },
+  nav: { home: 'Home', beauty: 'Schoonheid', care: 'Thuisverpleging', about: 'Over mij', journal: 'Journal', cta: 'Maak een afspraak', main: 'Hoofdnavigatie', homeAria: 'Nefertem, naar home', open: 'Menu openen', close: 'Menu sluiten', tagline: 'SCHOONHEID & ZORG' },
+  footer: { meet: 'Laten we kennismaken', place: 'Met aandacht, in Roeselare', admin: 'Beheer' },
+  status: { demo: 'Voorbeeldweergave · behandelingen, producten en berichten zijn illustratief.', loading: 'Gegevens laden', publicError: 'Het aanbod en de berichten zijn momenteel niet beschikbaar. Probeer het later opnieuw.', adminError: 'De gegevens konden niet worden geladen. Controleer de verbinding en of het Supabase-schema is geïnstalleerd.' },
+  home: {
+    heroAlt: 'Verzorgingsproducten, zachte handdoeken en bloemen in warme natuurlijke tinten', topLeft: 'PERSOONLIJKE AANDACHT. NATUURLIJKE RUST.', topRight: 'ROESELARE, BELGIË', eyebrow: 'SCHOONHEIDSVERZORGING & THUISVERPLEGING',
+    title1: 'Zorg die je', title2: 'laat ', titleEm: 'bloeien.', sub1: 'Voor je huid. Voor je welzijn. Voor jou.', sub2: 'Welkom bij Nefertem.', discover: 'ONTDEK NEFERTEM',
+    introTitle: 'Soms begint goed voor jezelf zorgen ', introEm: 'met een beetje aandacht.', introText: 'Bij Nefertem komen schoonheid en zorg samen. Van een ontspannende verzorging in de praktijk tot persoonlijke verpleging bij je thuis. Altijd met tijd, zachtheid en aandacht voor wie jij bent.', meet: 'Ontmoet Veronique',
+    beautyAlt: 'Een zachte gelaatsbehandeling in de praktijk', beautyEyebrow: '01 / SCHOONHEID', beautyTitle: 'Even helemaal', beautyEm: 'voor jezelf.', beautyText1: 'Verzorging die past bij jouw huid.', beautyText2: 'Een rustmoment dat blijft nazinderen.', beautyLink: 'Ontdek de behandelingen',
+    careEyebrow: '02 / THUISVERPLEGING', careTitle: 'Goede zorg.', careEm: 'Dicht bij jou.', careText: 'Een vertrouwd gezicht in je eigen omgeving. Persoonlijke thuisverpleging, afgestemd op jouw behoeften.', careCaption: 'MET AANDACHT VOOR ELK KLEIN DETAIL', careLink: 'Meer over thuisverpleging',
+    journalEyebrow: 'NIEUWS & KLEINE INSPIRATIES', journalTitle: 'Uit het ', journalEm: 'journal.', allStories: 'Alle verhalen', noPosts: 'Binnenkort vind je hier nieuws en verhalen uit de praktijk.',
+  },
+  product: { moreInfo: 'Meer informatie', comingSoon: 'Het aanbod wordt binnenkort aangevuld. Neem gerust contact op om de mogelijkheden te bespreken.' },
+  beauty: { eyebrow: 'SCHOONHEIDSVERZORGING', title: 'Een moment van rust.', em: 'Een huid die straalt.', text1: 'Ontdek onze behandelingen en verzorgingsproducten.', text2: 'Met aandacht voor jouw huid en jouw ritme.', filter: 'Aanbod filteren', all: 'Alles ontdekken', services: 'Behandelingen', products: 'Producten' },
+  care: {
+    eyebrow: 'THUISVERPLEGING IN ROESELARE', title: 'Een vertrouwd gezicht.', em: 'Bij jou thuis.', text: 'Goede zorg begint met luisteren. Samen bespreken we wat je nodig hebt en hoe de zorg in jouw dagelijks leven kan passen.', cta: 'Bespreek je zorgvraag', subject: 'Thuisverpleging', imageAlt: 'Zonlicht tussen de bomen, een rustig moment in de natuur', stepsEyebrow: 'PERSOONLIJK, VANAF HET EERSTE GESPREK',
+    steps: [['Kennismaken', 'Vertel over je zorgvraag en je situatie. We nemen de tijd om naar je te luisteren.'], ['Samen afstemmen', 'We bespreken de mogelijkheden, beschikbaarheid en praktische afspraken.'], ['Zorg met aandacht', 'Persoonlijke verpleging, met respect voor jouw gewoonten en je eigen omgeving.']] as [string, string][],
+  },
+  about: { eyebrow: 'OVER MIJ', title: 'Aandacht is de basis.', em: 'Jij staat centraal.', imageAlt: 'Persoonlijke aandacht tijdens een gelaatsverzorging', heading: 'Het gezicht achter', text: 'Of je nu langskomt voor een verzorging of zorg aan huis zoekt: we beginnen met een gesprek. Wat heb jij nodig? Wat voelt goed voor jou?', cta: 'Maak kennis' },
+  journal: { eyebrow: 'HET JOURNAL', title: 'Kleine verhalen.', em: 'Een beetje inspiratie.', text: 'Nieuws uit de praktijk en gedachten over aandacht en verzorging.', all: 'Alle berichten', blog: 'Inspiratie', news: 'Praktijknieuws', empty: 'Er zijn nog geen berichten in deze categorie.', loading: 'Het verhaal wordt geladen…', back: '← Terug naar het journal' },
+  contact: {
+    eyebrow: 'CONTACT & AFSPRAKEN', title: 'Alle tijd voor', em: 'een eerste gesprek.', text1: 'Een verzorging boeken of een zorgvraag bespreken?', text2: 'Veronique helpt je graag verder.', defaultSubject: 'Kennismaking', hours1: 'Behandelingen en thuisverpleging op afspraak.', hours2: 'Beschikbaarheid bespreken we persoonlijk.', route: 'Bekijk de route',
+    formTitle: 'Waarmee kunnen we je helpen?', name: 'Je naam', namePlaceholder: 'Voor- en achternaam', subject: 'Onderwerp', message: 'Je bericht', messagePlaceholder: 'Vertel kort waarvoor je contact wilt opnemen.', mailName: 'Naam', submit: 'Open je e-mailapp', note: 'Je bericht wordt geopend in je eigen e-mailapp. De afspraak is pas bevestigd na persoonlijk contact.', pending: 'De online contactgegevens worden binnenkort aangevuld. Je vindt de praktijk op bovenstaand adres.',
+  },
+  signup: {
+    eyebrow: 'HET JOURNAL IN JE MAILBOX', title: 'Nooit een ', em: 'verhaal missen.', text: 'Laat je e-mailadres achter en ontvang een berichtje zodra er iets nieuws verschijnt. Afmelden kan altijd met één klik.', email: 'Je e-mailadres', placeholder: 'naam@voorbeeld.be', submit: 'Inschrijven', privacy: 'We gebruiken je e-mailadres alleen om je over nieuwe berichten te informeren. Je ontvangt eerst een e-mail om je inschrijving te bevestigen.',
+    invalid: 'Vul een geldig e-mailadres in.', demo: 'In de voorbeeldweergave worden geen e-mails verstuurd.', failed: 'Inschrijven is niet gelukt. Probeer later opnieuw.', done: 'Bijna klaar! Bevestig je inschrijving via de link in je mailbox.',
+    confirming: 'Je inschrijving wordt bevestigd…', unsubscribing: 'Je wordt afgemeld…', confirmed: 'Je inschrijving is bevestigd. Je hoort van ons bij een nieuw bericht.', unsubscribed: 'Je bent afgemeld. Je ontvangt geen e-mails meer van het journal.', linkFailed: 'Deze link werkt niet. Probeer het later opnieuw.', closeNotice: 'Melding sluiten',
+  },
+  notFound: { title: 'Even de weg kwijt?', text: 'Deze pagina bestaat niet of is niet gepubliceerd.', cta: 'Terug naar de start' },
+  image: {
+    optional: 'Afbeelding · optioneel', logo: 'Logo · optioneel', badType: 'Gebruik een JPG-, PNG-, GIF- of WebP-afbeelding.', tooBig: 'Kies een afbeelding van maximaal 5 MB.', loginFirst: 'Log in op de beheeromgeving om afbeeldingen te uploaden.', relogin: 'Log opnieuw in om een afbeelding te uploaden.',
+    uploadFailed: 'Uploaden is niet gelukt. Controleer of de uploadfunctie ingesteld is en probeer opnieuw.', badLink: 'De upload heeft geen geldige afbeeldingslink teruggestuurd.', retry: 'Uploaden is niet gelukt. Probeer opnieuw.', choose: 'Afbeelding kiezen', uploading: 'Uploaden…', upload: 'Afbeelding uploaden',
+    demoHint: 'Uploaden is beschikbaar na inloggen. Je kunt hier wel een afbeeldingslink proberen.', hint: 'JPG, PNG, WebP of GIF · maximaal 5 MB', busy: 'Je afbeelding wordt geüpload…', previewAlt: 'Voorbeeld van de gekozen afbeelding', cannotLoad: 'De afbeelding kan niet worden geladen.', remove: 'Afbeelding verwijderen', paste: 'Of plak een afbeeldingslink', https: 'Gebruik een geldige HTTPS-afbeeldingslink.',
+  },
+  password: { short: 'Kies een wachtwoord van minstens 8 tekens.', long: 'Kies een wachtwoord van maximaal 72 tekens.', mismatch: 'De twee wachtwoorden komen niet overeen.', same: 'Kies een nieuw wachtwoord dat verschilt van je huidige.', relogin: 'Log opnieuw in om je wachtwoord te wijzigen.', wrongCurrent: 'Je huidige wachtwoord klopt niet.', weak: 'Dit wachtwoord is te zwak. Kies een langer of minder voorspelbaar wachtwoord.', failed: 'Je wachtwoord kon niet worden gewijzigd. Probeer opnieuw.', changed: 'Je wachtwoord is gewijzigd.', current: 'Huidig wachtwoord', next: 'Nieuw wachtwoord · minstens 8 tekens', repeat: 'Herhaal nieuw wachtwoord', save: 'Wachtwoord opslaan' },
+  data: { visibility: 'De zichtbaarheid kon niet worden opgeslagen. Probeer opnieuw.', badStock: 'Ongeldige voorraadwijziging.', announce: (detail: string) => `Het bericht is gepubliceerd, maar de e-mail aan abonnees is niet verstuurd (${detail}). Sla het bericht opnieuw op om het nog eens te proberen.`, unknown: 'onbekende fout' },
+  admin: {
+    loading: 'Beheeromgeving laden…', brand: 'NEFERTEM / BEHEER', checkFailed: 'De beheerrechten konden niet worden gecontroleerd. Installeer eerst het Supabase-schema.', loginFailed: 'Inloggen is niet gelukt. Controleer je e-mailadres en wachtwoord.', resetSent: 'Als dit e-mailadres bij een account hoort, ontvang je zo een link om een nieuw wachtwoord in te stellen.', tooMany: 'Er zijn net te veel aanvragen verstuurd. Wacht even en probeer opnieuw.', logoutFailed: 'Uitloggen is niet gelukt. Probeer opnieuw.', invalidLink: 'Deze herstellink is ongeldig of verlopen. Vraag hieronder een nieuwe link aan.',
+    newPassword: 'Nieuw wachtwoord.', newPasswordText: 'Kies een nieuw wachtwoord voor je account.', passwordSaved: 'Je nieuwe wachtwoord is opgeslagen.', back: '← Naar de website', deniedTitle: 'Toegang nodig.', forgotTitle: 'Wachtwoord vergeten.', welcome: 'Welkom terug.', deniedText: 'Dit account heeft nog geen beheerrechten. Voeg het gebruikers-ID toe aan de admins-tabel in Supabase.', forgotText: 'Vul je e-mailadres in. Je ontvangt een link om een nieuw wachtwoord te kiezen.', welcomeText: 'Je eigen plek voor aanbod, verhalen en voorraad.',
+    email: 'E-mailadres', password: 'Wachtwoord', sendReset: 'Herstellink versturen', backToLogin: '← Terug naar inloggen', login: 'Inloggen', forgot: 'Wachtwoord vergeten?', logout: 'Uitloggen', secured: 'Beveiligd via Supabase Auth', demoSummary: 'Ontwerp en functies uitproberen', demoText: 'De voorbeeldomgeving gebruikt alleen fictieve gegevens in deze browser. Je logt hiermee niet in op Supabase.', demoOpen: 'Open de voorbeeldomgeving',
+    sidebarTag: 'BEHEEROMGEVING', navLabel: 'Beheernavigatie', overview: 'Overzicht', offer: 'Producten & diensten', posts: 'Berichten', stock: 'Voorraad', settings: 'Praktijkgegevens', account: 'Account', viewSite: 'Bekijk de website', exitDemo: 'Voorbeeld afsluiten', topbar: 'BEHEER', demoBadge: 'Voorbeeldomgeving', connected: 'Supabase verbonden', demoBanner: 'Voorbeeldgegevens · wijzigingen worden alleen in deze browser opgeslagen.',
+  },
+  account: { kicker: 'JOUW ACCOUNT', title: 'Wachtwoord wijzigen.', text: 'Kies een nieuw wachtwoord voor de beheeromgeving.', demo: 'In de voorbeeldomgeving is er geen account. Log in met Supabase om je wachtwoord te wijzigen.' },
+  dashboard: { kicker: 'FIJN DAT JE ER BENT', title: 'Alles op een rij.', text: 'Een rustige blik op je praktijk.', offer: 'Producten & diensten', published: 'Gepubliceerde berichten', low: 'Producten met lage voorraad', start: 'AAN DE SLAG', today: 'Wat wil je vandaag doen?', addOffer: 'Aanbod toevoegen', write: 'Een verhaal schrijven', updateStock: 'Voorraad bijwerken', attention: 'Voorraad die aandacht vraagt', allGood: 'Alles is op peil. Er zijn geen producten onder de minimumvoorraad.', inStock: (n: number) => `${n} op voorraad` },
+  publication: { publish: (name: string) => `${name} publiceren`, published: 'Gepubliceerd', hidden: 'Verborgen' },
+  products: {
+    kicker: 'JOUW AANBOD', title: 'Producten & diensten.', text: 'Beheer wat je klanten op de website ontdekken.', add: 'Nieuw toevoegen', name: 'Naam', type: 'Type', price: 'Prijs', visibility: 'Zichtbaarheid', actions: 'Acties', edit: (name: string) => `${name} bewerken`, remove: (name: string) => `${name} verwijderen`, empty: 'Voeg je eerste product of dienst toe.',
+    deleteTitle: 'Aanbod verwijderen?', deleteText: (name: string) => `“${name}” wordt verwijderd, samen met de gekoppelde voorraad en het voorraadlogboek.`, editTitle: 'Aanbod bewerken', newTitle: 'Nieuw aanbod', service: 'Dienst / behandeling', category: 'Categorie', description: 'Omschrijving', priceField: 'Prijs (€) · leeg = op aanvraag', duration: 'Duur (minuten) · optioneel', visible: 'Zichtbaar op de website',
+  },
+  postsAdmin: {
+    kicker: 'HET JOURNAL', title: 'Verhalen & nieuws.', text: 'Schrijf een blog of deel een aankondiging uit de praktijk.', subscribers: (n: number) => ` Bij de eerste publicatie krijgen ${n} ${n === 1 ? 'abonnee' : 'abonnees'} een e-mail.`, add: 'Nieuw bericht', titleCol: 'Titel', date: 'Datum', status: 'Status', empty: 'Er zijn nog geen berichten. Schrijf je eerste verhaal.',
+    deleteTitle: 'Bericht verwijderen?', deleteText: (title: string) => `“${title}” wordt definitief verwijderd.`, editTitle: 'Bericht bewerken', newTitle: 'Nieuw bericht', blog: 'Blog / inspiratie', excerpt: 'Korte introductie', body: 'Bericht', bodyPlaceholder: 'Schrijf je verhaal. Gebruik een lege regel tussen alinea’s.', publish: 'Publiceren op de website',
+  },
+  stock: {
+    kicker: 'ALLEEN VOOR JOU ZICHTBAAR', title: 'Je persoonlijke voorraad.', text: 'Hou je producten bij, met een overzicht van elke wijziging.', product: 'Product / artikelnummer', stock: 'Voorraad', minimum: 'Minimum', noSku: 'Geen artikelnummer', out: 'Uit voorraad', reorder: 'Bijbestellen', ok: 'Op peil', update: 'Bijwerken', settingsAria: (name: string) => `${name} voorraadinstellingen`, empty: 'Voeg een product toe bij Producten & diensten om voorraad bij te houden.',
+    recent: 'Recente voorraadwijzigingen', noLog: 'Je voorraadlogboek is nog leeg.', removedProduct: 'Verwijderd product', adjusted: 'Voorraad aangepast', updateTitle: 'Voorraad bijwerken', invalid: 'Gebruik een geheel aantal. De voorraad mag niet negatief worden.', current: 'huidige voorraad', change: 'Wijziging · positief = ontvangst, negatief = verbruik', reason: 'Reden', reasonPlaceholder: 'Bijvoorbeeld: levering of verkoop', newStock: 'Nieuwe voorraad', saveChange: 'Wijziging opslaan', settingsTitle: 'Voorraadinstellingen', sku: 'Artikelnummer', minimumField: 'Minimumvoorraad',
+  },
+  practice: { kicker: 'DE PRAKTIJK', title: 'Persoonlijk & bereikbaar.', text: 'Werk je contactgegevens, introductie en logo bij.', logoHttps: 'Gebruik een HTTPS-link voor het logo.', saved: 'Je praktijkgegevens zijn opgeslagen.', email: 'E-mailadres', phone: 'Telefoonnummer', address: 'Adres', region: 'Regio', about: 'Over Veronique', save: 'Gegevens opslaan', logoNote: 'Wordt getoond in de kop en voet van de website, in plaats van de tekst “nefertem”.' },
+}
+export type Dict = typeof nl
+
+const fr: Dict = {
+  langName: 'Français',
+  langLabel: 'Langue',
+  meta: { title: 'Nefertem — Des soins pour s’épanouir', adminTitle: 'Gestion — Nefertem', description: 'Nefertem — soins esthétiques et soins infirmiers à domicile personnalisés. Un moment de calme, avec de l’attention pour vous.' },
+  common: { onRequest: 'Sur demande', save: 'Enregistrer', saving: 'Enregistrement…', cancel: 'Annuler', delete: 'Supprimer', deleting: 'Suppression…', wait: 'Un instant…', retry: 'Réessayer', skip: 'Aller au contenu', noImage: 'Pas d’image', minutes: (n: number) => `${n} minutes`, closeWindow: 'Fermer la fenêtre', search: 'Rechercher par nom…', supabaseMissing: 'Supabase n’est pas configuré.' },
+  categories: { schoonheid: 'Beauté', thuisverpleging: 'Soins à domicile', verzorging: 'Produits de soin' },
+  kinds: { dienst: 'Service', product: 'Produit', serviceLabel: 'SOIN', productLabel: 'PRODUIT', blog: 'Blog', aankondiging: 'Annonce', blogLabel: 'INSPIRATION', newsLabel: 'ACTUALITÉS' },
+  nav: { home: 'Accueil', beauty: 'Beauté', care: 'Soins à domicile', about: 'À propos', journal: 'Journal', cta: 'Prendre rendez-vous', main: 'Navigation principale', homeAria: 'Nefertem, vers l’accueil', open: 'Ouvrir le menu', close: 'Fermer le menu', tagline: 'BEAUTÉ & SOINS' },
+  footer: { meet: 'Faisons connaissance', place: 'Avec attention, à Roulers', admin: 'Gestion' },
+  status: { demo: 'Aperçu · les soins, produits et articles sont illustratifs.', loading: 'Chargement des données', publicError: 'L’offre et les articles sont momentanément indisponibles. Réessayez plus tard.', adminError: 'Les données n’ont pas pu être chargées. Vérifiez la connexion et que le schéma Supabase est installé.' },
+  home: {
+    heroAlt: 'Produits de soin, serviettes douces et fleurs dans des tons naturels chaleureux', topLeft: 'ATTENTION PERSONNELLE. CALME NATUREL.', topRight: 'ROULERS, BELGIQUE', eyebrow: 'SOINS ESTHÉTIQUES & SOINS À DOMICILE',
+    title1: 'Des soins pour', title2: 'vous ', titleEm: 'épanouir.', sub1: 'Pour votre peau. Pour votre bien-être. Pour vous.', sub2: 'Bienvenue chez Nefertem.', discover: 'DÉCOUVRIR NEFERTEM',
+    introTitle: 'Prendre soin de soi commence parfois ', introEm: 'par un peu d’attention.', introText: 'Chez Nefertem, beauté et soins se rejoignent. D’un soin relaxant au cabinet à des soins infirmiers personnalisés chez vous. Toujours avec du temps, de la douceur et de l’attention pour qui vous êtes.', meet: 'Rencontrer Veronique',
+    beautyAlt: 'Un soin du visage tout en douceur au cabinet', beautyEyebrow: '01 / BEAUTÉ', beautyTitle: 'Un moment rien', beautyEm: 'que pour vous.', beautyText1: 'Des soins adaptés à votre peau.', beautyText2: 'Une pause qui laisse une empreinte durable.', beautyLink: 'Découvrir les soins',
+    careEyebrow: '02 / SOINS À DOMICILE', careTitle: 'De bons soins.', careEm: 'Près de chez vous.', careText: 'Un visage familier dans votre propre environnement. Des soins infirmiers à domicile personnalisés, adaptés à vos besoins.', careCaption: 'AVEC ATTENTION POUR CHAQUE DÉTAIL', careLink: 'En savoir plus sur les soins à domicile',
+    journalEyebrow: 'ACTUALITÉS & PETITES INSPIRATIONS', journalTitle: 'Extraits du ', journalEm: 'journal.', allStories: 'Tous les articles', noPosts: 'Vous trouverez bientôt ici des nouvelles et des récits du cabinet.',
+  },
+  product: { moreInfo: 'Plus d’informations', comingSoon: 'L’offre sera bientôt complétée. N’hésitez pas à nous contacter pour discuter des possibilités.' },
+  beauty: { eyebrow: 'SOINS ESTHÉTIQUES', title: 'Un moment de calme.', em: 'Une peau éclatante.', text1: 'Découvrez nos soins et nos produits.', text2: 'Avec attention pour votre peau et votre rythme.', filter: 'Filtrer l’offre', all: 'Tout découvrir', services: 'Soins', products: 'Produits' },
+  care: {
+    eyebrow: 'SOINS À DOMICILE À ROULERS', title: 'Un visage familier.', em: 'Chez vous.', text: 'De bons soins commencent par l’écoute. Ensemble, nous voyons ce dont vous avez besoin et comment les soins s’intègrent à votre quotidien.', cta: 'Parlons de vos besoins', subject: 'Soins à domicile', imageAlt: 'Rayons de soleil entre les arbres, un moment calme dans la nature', stepsEyebrow: 'PERSONNALISÉ, DÈS LE PREMIER ENTRETIEN',
+    steps: [['Faire connaissance', 'Parlez-nous de vos besoins et de votre situation. Nous prenons le temps de vous écouter.'], ['S’accorder ensemble', 'Nous discutons des possibilités, des disponibilités et des aspects pratiques.'], ['Des soins attentifs', 'Des soins infirmiers personnalisés, dans le respect de vos habitudes et de votre environnement.']],
+  },
+  about: { eyebrow: 'À PROPOS', title: 'L’attention avant tout.', em: 'Vous êtes au centre.', imageAlt: 'Attention personnelle lors d’un soin du visage', heading: 'Le visage derrière', text: 'Que vous veniez pour un soin ou que vous cherchiez des soins à domicile : nous commençons par un entretien. De quoi avez-vous besoin ? Qu’est-ce qui vous fait du bien ?', cta: 'Faire connaissance' },
+  journal: { eyebrow: 'LE JOURNAL', title: 'Petites histoires.', em: 'Un peu d’inspiration.', text: 'Des nouvelles du cabinet et des réflexions sur l’attention et les soins.', all: 'Tous les articles', blog: 'Inspiration', news: 'Actualités', empty: 'Il n’y a pas encore d’articles dans cette catégorie.', loading: 'Chargement de l’article…', back: '← Retour au journal' },
+  contact: {
+    eyebrow: 'CONTACT & RENDEZ-VOUS', title: 'Tout le temps pour', em: 'un premier entretien.', text1: 'Réserver un soin ou parler de vos besoins en soins ?', text2: 'Veronique vous aide volontiers.', defaultSubject: 'Faire connaissance', hours1: 'Soins et soins à domicile sur rendez-vous.', hours2: 'Les disponibilités se discutent personnellement.', route: 'Voir l’itinéraire',
+    formTitle: 'Comment pouvons-nous vous aider ?', name: 'Votre nom', namePlaceholder: 'Prénom et nom', subject: 'Sujet', message: 'Votre message', messagePlaceholder: 'Expliquez brièvement pourquoi vous nous contactez.', mailName: 'Nom', submit: 'Ouvrir votre application e-mail', note: 'Votre message s’ouvre dans votre propre application e-mail. Le rendez-vous n’est confirmé qu’après un contact personnel.', pending: 'Les coordonnées en ligne seront bientôt complétées. Vous trouverez le cabinet à l’adresse ci-dessus.',
+  },
+  signup: {
+    eyebrow: 'LE JOURNAL DANS VOTRE BOÎTE MAIL', title: 'Ne manquez ', em: 'aucun article.', text: 'Laissez votre adresse e-mail et recevez un petit message dès qu’un nouvel article paraît. Désinscription possible à tout moment en un clic.', email: 'Votre adresse e-mail', placeholder: 'nom@exemple.be', submit: 'S’inscrire', privacy: 'Nous utilisons votre adresse e-mail uniquement pour vous informer des nouveaux articles. Vous recevrez d’abord un e-mail pour confirmer votre inscription.',
+    invalid: 'Saisissez une adresse e-mail valide.', demo: 'Aucun e-mail n’est envoyé dans l’aperçu.', failed: 'L’inscription a échoué. Réessayez plus tard.', done: 'Presque terminé ! Confirmez votre inscription via le lien dans votre boîte mail.',
+    confirming: 'Confirmation de votre inscription…', unsubscribing: 'Désinscription en cours…', confirmed: 'Votre inscription est confirmée. Vous serez prévenu(e) à chaque nouvel article.', unsubscribed: 'Vous êtes désinscrit(e). Vous ne recevrez plus d’e-mails du journal.', linkFailed: 'Ce lien ne fonctionne pas. Réessayez plus tard.', closeNotice: 'Fermer la notification',
+  },
+  notFound: { title: 'Un peu perdu(e) ?', text: 'Cette page n’existe pas ou n’est pas publiée.', cta: 'Retour à l’accueil' },
+  image: {
+    optional: 'Image · facultative', logo: 'Logo · facultatif', badType: 'Utilisez une image JPG, PNG, GIF ou WebP.', tooBig: 'Choisissez une image de 5 Mo maximum.', loginFirst: 'Connectez-vous à l’espace de gestion pour téléverser des images.', relogin: 'Reconnectez-vous pour téléverser une image.',
+    uploadFailed: 'Le téléversement a échoué. Vérifiez que la fonction de téléversement est configurée et réessayez.', badLink: 'Le téléversement n’a pas renvoyé de lien d’image valide.', retry: 'Le téléversement a échoué. Réessayez.', choose: 'Choisir une image', uploading: 'Téléversement…', upload: 'Téléverser une image',
+    demoHint: 'Le téléversement est disponible après connexion. Vous pouvez essayer un lien d’image ici.', hint: 'JPG, PNG, WebP ou GIF · 5 Mo maximum', busy: 'Votre image est en cours de téléversement…', previewAlt: 'Aperçu de l’image choisie', cannotLoad: 'L’image ne peut pas être chargée.', remove: 'Supprimer l’image', paste: 'Ou collez un lien d’image', https: 'Utilisez un lien d’image HTTPS valide.',
+  },
+  password: { short: 'Choisissez un mot de passe d’au moins 8 caractères.', long: 'Choisissez un mot de passe de 72 caractères maximum.', mismatch: 'Les deux mots de passe ne correspondent pas.', same: 'Choisissez un nouveau mot de passe différent de l’actuel.', relogin: 'Reconnectez-vous pour modifier votre mot de passe.', wrongCurrent: 'Votre mot de passe actuel est incorrect.', weak: 'Ce mot de passe est trop faible. Choisissez-en un plus long ou moins prévisible.', failed: 'Votre mot de passe n’a pas pu être modifié. Réessayez.', changed: 'Votre mot de passe a été modifié.', current: 'Mot de passe actuel', next: 'Nouveau mot de passe · au moins 8 caractères', repeat: 'Répétez le nouveau mot de passe', save: 'Enregistrer le mot de passe' },
+  data: { visibility: 'La visibilité n’a pas pu être enregistrée. Réessayez.', badStock: 'Modification de stock invalide.', announce: (detail: string) => `L’article est publié, mais l’e-mail aux abonnés n’a pas été envoyé (${detail}). Enregistrez à nouveau l’article pour réessayer.`, unknown: 'erreur inconnue' },
+  admin: {
+    loading: 'Chargement de l’espace de gestion…', brand: 'NEFERTEM / GESTION', checkFailed: 'Les droits de gestion n’ont pas pu être vérifiés. Installez d’abord le schéma Supabase.', loginFailed: 'La connexion a échoué. Vérifiez votre adresse e-mail et votre mot de passe.', resetSent: 'Si cette adresse e-mail correspond à un compte, vous recevrez bientôt un lien pour définir un nouveau mot de passe.', tooMany: 'Trop de demandes viennent d’être envoyées. Patientez un instant et réessayez.', logoutFailed: 'La déconnexion a échoué. Réessayez.', invalidLink: 'Ce lien de réinitialisation est invalide ou expiré. Demandez un nouveau lien ci-dessous.',
+    newPassword: 'Nouveau mot de passe.', newPasswordText: 'Choisissez un nouveau mot de passe pour votre compte.', passwordSaved: 'Votre nouveau mot de passe est enregistré.', back: '← Vers le site', deniedTitle: 'Accès requis.', forgotTitle: 'Mot de passe oublié.', welcome: 'Bon retour.', deniedText: 'Ce compte n’a pas encore de droits de gestion. Ajoutez l’ID utilisateur à la table admins dans Supabase.', forgotText: 'Saisissez votre adresse e-mail. Vous recevrez un lien pour choisir un nouveau mot de passe.', welcomeText: 'Votre espace pour l’offre, les articles et le stock.',
+    email: 'Adresse e-mail', password: 'Mot de passe', sendReset: 'Envoyer le lien', backToLogin: '← Retour à la connexion', login: 'Se connecter', forgot: 'Mot de passe oublié ?', logout: 'Se déconnecter', secured: 'Sécurisé par Supabase Auth', demoSummary: 'Essayer le design et les fonctions', demoText: 'L’environnement de démonstration utilise uniquement des données fictives dans ce navigateur. Il ne vous connecte pas à Supabase.', demoOpen: 'Ouvrir la démonstration',
+    sidebarTag: 'ESPACE DE GESTION', navLabel: 'Navigation de gestion', overview: 'Aperçu', offer: 'Produits & services', posts: 'Articles', stock: 'Stock', settings: 'Données du cabinet', account: 'Compte', viewSite: 'Voir le site', exitDemo: 'Quitter la démo', topbar: 'GESTION', demoBadge: 'Démonstration', connected: 'Supabase connecté', demoBanner: 'Données d’exemple · les modifications sont enregistrées uniquement dans ce navigateur.',
+  },
+  account: { kicker: 'VOTRE COMPTE', title: 'Changer le mot de passe.', text: 'Choisissez un nouveau mot de passe pour l’espace de gestion.', demo: 'Il n’y a pas de compte dans la démonstration. Connectez-vous avec Supabase pour changer votre mot de passe.' },
+  dashboard: { kicker: 'RAVIE DE VOUS VOIR', title: 'Tout en un coup d’œil.', text: 'Un regard serein sur votre cabinet.', offer: 'Produits & services', published: 'Articles publiés', low: 'Produits en stock bas', start: 'AU TRAVAIL', today: 'Que voulez-vous faire aujourd’hui ?', addOffer: 'Ajouter une offre', write: 'Écrire un article', updateStock: 'Mettre à jour le stock', attention: 'Stock à surveiller', allGood: 'Tout est en ordre. Aucun produit n’est sous le stock minimum.', inStock: (n: number) => `${n} en stock` },
+  publication: { publish: (name: string) => `Publier ${name}`, published: 'Publié', hidden: 'Masqué' },
+  products: {
+    kicker: 'VOTRE OFFRE', title: 'Produits & services.', text: 'Gérez ce que vos clients découvrent sur le site.', add: 'Ajouter', name: 'Nom', type: 'Type', price: 'Prix', visibility: 'Visibilité', actions: 'Actions', edit: (name: string) => `Modifier ${name}`, remove: (name: string) => `Supprimer ${name}`, empty: 'Ajoutez votre premier produit ou service.',
+    deleteTitle: 'Supprimer l’offre ?', deleteText: (name: string) => `« ${name} » sera supprimé, avec le stock associé et l’historique du stock.`, editTitle: 'Modifier l’offre', newTitle: 'Nouvelle offre', service: 'Service / soin', category: 'Catégorie', description: 'Description', priceField: 'Prix (€) · vide = sur demande', duration: 'Durée (minutes) · facultative', visible: 'Visible sur le site',
+  },
+  postsAdmin: {
+    kicker: 'LE JOURNAL', title: 'Récits & actualités.', text: 'Écrivez un article ou partagez une annonce du cabinet.', subscribers: (n: number) => ` Lors de la première publication, ${n} ${n === 1 ? 'abonné(e) reçoit' : 'abonné(e)s reçoivent'} un e-mail.`, add: 'Nouvel article', titleCol: 'Titre', date: 'Date', status: 'Statut', empty: 'Il n’y a pas encore d’articles. Écrivez votre premier récit.',
+    deleteTitle: 'Supprimer l’article ?', deleteText: (title: string) => `« ${title} » sera définitivement supprimé.`, editTitle: 'Modifier l’article', newTitle: 'Nouvel article', blog: 'Blog / inspiration', excerpt: 'Courte introduction', body: 'Article', bodyPlaceholder: 'Écrivez votre récit. Laissez une ligne vide entre les paragraphes.', publish: 'Publier sur le site',
+  },
+  stock: {
+    kicker: 'VISIBLE UNIQUEMENT PAR VOUS', title: 'Votre stock personnel.', text: 'Suivez vos produits, avec un aperçu de chaque modification.', product: 'Produit / référence', stock: 'Stock', minimum: 'Minimum', noSku: 'Pas de référence', out: 'Épuisé', reorder: 'À commander', ok: 'En ordre', update: 'Mettre à jour', settingsAria: (name: string) => `Paramètres de stock de ${name}`, empty: 'Ajoutez un produit dans Produits & services pour suivre le stock.',
+    recent: 'Modifications de stock récentes', noLog: 'Votre historique de stock est encore vide.', removedProduct: 'Produit supprimé', adjusted: 'Stock ajusté', updateTitle: 'Mettre à jour le stock', invalid: 'Utilisez un nombre entier. Le stock ne peut pas devenir négatif.', current: 'stock actuel', change: 'Modification · positif = réception, négatif = utilisation', reason: 'Motif', reasonPlaceholder: 'Par exemple : livraison ou vente', newStock: 'Nouveau stock', saveChange: 'Enregistrer la modification', settingsTitle: 'Paramètres de stock', sku: 'Référence', minimumField: 'Stock minimum',
+  },
+  practice: { kicker: 'LE CABINET', title: 'Personnel & joignable.', text: 'Mettez à jour vos coordonnées, votre présentation et votre logo.', logoHttps: 'Utilisez un lien HTTPS pour le logo.', saved: 'Les données du cabinet sont enregistrées.', email: 'Adresse e-mail', phone: 'Téléphone', address: 'Adresse', region: 'Région', about: 'À propos de Veronique', save: 'Enregistrer les données', logoNote: 'Affiché dans l’en-tête et le pied de page du site, à la place du texte « nefertem ».' },
+}
+
+const en: Dict = {
+  langName: 'English',
+  langLabel: 'Language',
+  meta: { title: 'Nefertem — Care that helps you bloom', adminTitle: 'Admin — Nefertem', description: 'Nefertem — personal beauty care and home nursing. A moment of calm, with attention for you.' },
+  common: { onRequest: 'On request', save: 'Save', saving: 'Saving…', cancel: 'Cancel', delete: 'Delete', deleting: 'Deleting…', wait: 'One moment…', retry: 'Try again', skip: 'Skip to content', noImage: 'No image', minutes: (n: number) => `${n} minutes`, closeWindow: 'Close window', search: 'Search by name…', supabaseMissing: 'Supabase is not configured.' },
+  categories: { schoonheid: 'Beauty', thuisverpleging: 'Home nursing', verzorging: 'Care products' },
+  kinds: { dienst: 'Service', product: 'Product', serviceLabel: 'TREATMENT', productLabel: 'PRODUCT', blog: 'Blog', aankondiging: 'Announcement', blogLabel: 'INSPIRATION', newsLabel: 'PRACTICE NEWS' },
+  nav: { home: 'Home', beauty: 'Beauty', care: 'Home nursing', about: 'About me', journal: 'Journal', cta: 'Book an appointment', main: 'Main navigation', homeAria: 'Nefertem, go to home', open: 'Open menu', close: 'Close menu', tagline: 'BEAUTY & CARE' },
+  footer: { meet: 'Let’s get acquainted', place: 'With care, in Roeselare', admin: 'Admin' },
+  status: { demo: 'Preview · treatments, products and posts are illustrative.', loading: 'Loading data', publicError: 'The offer and posts are currently unavailable. Please try again later.', adminError: 'The data could not be loaded. Check the connection and whether the Supabase schema is installed.' },
+  home: {
+    heroAlt: 'Care products, soft towels and flowers in warm natural tones', topLeft: 'PERSONAL ATTENTION. NATURAL CALM.', topRight: 'ROESELARE, BELGIUM', eyebrow: 'BEAUTY CARE & HOME NURSING',
+    title1: 'Care that helps', title2: 'you ', titleEm: 'bloom.', sub1: 'For your skin. For your wellbeing. For you.', sub2: 'Welcome to Nefertem.', discover: 'DISCOVER NEFERTEM',
+    introTitle: 'Sometimes taking care of yourself begins ', introEm: 'with a little attention.', introText: 'At Nefertem, beauty and care come together. From a relaxing treatment at the practice to personal nursing in your own home. Always with time, gentleness and attention for who you are.', meet: 'Meet Veronique',
+    beautyAlt: 'A gentle facial treatment at the practice', beautyEyebrow: '01 / BEAUTY', beautyTitle: 'A moment just', beautyEm: 'for yourself.', beautyText1: 'Care that suits your skin.', beautyText2: 'A moment of rest that lingers.', beautyLink: 'Discover the treatments',
+    careEyebrow: '02 / HOME NURSING', careTitle: 'Good care.', careEm: 'Close to you.', careText: 'A familiar face in your own surroundings. Personal home nursing, tailored to your needs.', careCaption: 'WITH ATTENTION TO EVERY LITTLE DETAIL', careLink: 'More about home nursing',
+    journalEyebrow: 'NEWS & LITTLE INSPIRATIONS', journalTitle: 'From the ', journalEm: 'journal.', allStories: 'All stories', noPosts: 'Soon you will find news and stories from the practice here.',
+  },
+  product: { moreInfo: 'More information', comingSoon: 'The offer will be added soon. Feel free to get in touch to discuss the options.' },
+  beauty: { eyebrow: 'BEAUTY CARE', title: 'A moment of calm.', em: 'Skin that glows.', text1: 'Discover our treatments and care products.', text2: 'With attention for your skin and your rhythm.', filter: 'Filter the offer', all: 'Discover everything', services: 'Treatments', products: 'Products' },
+  care: {
+    eyebrow: 'HOME NURSING IN ROESELARE', title: 'A familiar face.', em: 'In your own home.', text: 'Good care starts with listening. Together we discuss what you need and how care can fit into your daily life.', cta: 'Discuss your care needs', subject: 'Home nursing', imageAlt: 'Sunlight between the trees, a quiet moment in nature', stepsEyebrow: 'PERSONAL, FROM THE FIRST CONVERSATION',
+    steps: [['Getting acquainted', 'Tell us about your care needs and your situation. We take the time to listen to you.'], ['Agreeing together', 'We discuss the options, availability and practical arrangements.'], ['Care with attention', 'Personal nursing, respecting your habits and your own surroundings.']],
+  },
+  about: { eyebrow: 'ABOUT ME', title: 'Attention is the foundation.', em: 'You come first.', imageAlt: 'Personal attention during a facial treatment', heading: 'The face behind', text: 'Whether you come for a treatment or are looking for care at home: we start with a conversation. What do you need? What feels right for you?', cta: 'Get acquainted' },
+  journal: { eyebrow: 'THE JOURNAL', title: 'Little stories.', em: 'A bit of inspiration.', text: 'News from the practice and thoughts on attention and care.', all: 'All posts', blog: 'Inspiration', news: 'Practice news', empty: 'There are no posts in this category yet.', loading: 'Loading the story…', back: '← Back to the journal' },
+  contact: {
+    eyebrow: 'CONTACT & APPOINTMENTS', title: 'All the time in the world for', em: 'a first conversation.', text1: 'Book a treatment or discuss a care need?', text2: 'Veronique is happy to help.', defaultSubject: 'Introduction', hours1: 'Treatments and home nursing by appointment.', hours2: 'We discuss availability in person.', route: 'View the route',
+    formTitle: 'How can we help you?', name: 'Your name', namePlaceholder: 'First and last name', subject: 'Subject', message: 'Your message', messagePlaceholder: 'Briefly tell us why you are getting in touch.', mailName: 'Name', submit: 'Open your email app', note: 'Your message opens in your own email app. The appointment is only confirmed after personal contact.', pending: 'The online contact details will be added soon. You can find the practice at the address above.',
+  },
+  signup: {
+    eyebrow: 'THE JOURNAL IN YOUR INBOX', title: 'Never miss ', em: 'a story.', text: 'Leave your email address and get a short message whenever something new is published. You can unsubscribe at any time with one click.', email: 'Your email address', placeholder: 'name@example.com', submit: 'Subscribe', privacy: 'We only use your email address to let you know about new posts. You will first receive an email to confirm your subscription.',
+    invalid: 'Enter a valid email address.', demo: 'No emails are sent in the preview.', failed: 'Subscribing failed. Please try again later.', done: 'Almost done! Confirm your subscription via the link in your inbox.',
+    confirming: 'Confirming your subscription…', unsubscribing: 'Unsubscribing…', confirmed: 'Your subscription is confirmed. You will hear from us when there is a new post.', unsubscribed: 'You are unsubscribed. You will no longer receive emails from the journal.', linkFailed: 'This link does not work. Please try again later.', closeNotice: 'Close notification',
+  },
+  notFound: { title: 'Lost your way?', text: 'This page does not exist or has not been published.', cta: 'Back to the start' },
+  image: {
+    optional: 'Image · optional', logo: 'Logo · optional', badType: 'Use a JPG, PNG, GIF or WebP image.', tooBig: 'Choose an image of at most 5 MB.', loginFirst: 'Log in to the admin area to upload images.', relogin: 'Log in again to upload an image.',
+    uploadFailed: 'Upload failed. Check that the upload function is set up and try again.', badLink: 'The upload did not return a valid image link.', retry: 'Upload failed. Please try again.', choose: 'Choose image', uploading: 'Uploading…', upload: 'Upload image',
+    demoHint: 'Uploading is available after logging in. You can try an image link here.', hint: 'JPG, PNG, WebP or GIF · max 5 MB', busy: 'Your image is being uploaded…', previewAlt: 'Preview of the chosen image', cannotLoad: 'The image cannot be loaded.', remove: 'Remove image', paste: 'Or paste an image link', https: 'Use a valid HTTPS image link.',
+  },
+  password: { short: 'Choose a password of at least 8 characters.', long: 'Choose a password of at most 72 characters.', mismatch: 'The two passwords do not match.', same: 'Choose a new password that differs from your current one.', relogin: 'Log in again to change your password.', wrongCurrent: 'Your current password is incorrect.', weak: 'This password is too weak. Choose a longer or less predictable one.', failed: 'Your password could not be changed. Please try again.', changed: 'Your password has been changed.', current: 'Current password', next: 'New password · at least 8 characters', repeat: 'Repeat new password', save: 'Save password' },
+  data: { visibility: 'The visibility could not be saved. Please try again.', badStock: 'Invalid stock change.', announce: (detail: string) => `The post is published, but the email to subscribers was not sent (${detail}). Save the post again to retry.`, unknown: 'unknown error' },
+  admin: {
+    loading: 'Loading admin area…', brand: 'NEFERTEM / ADMIN', checkFailed: 'Admin rights could not be verified. Install the Supabase schema first.', loginFailed: 'Login failed. Check your email address and password.', resetSent: 'If this email address belongs to an account, you will shortly receive a link to set a new password.', tooMany: 'Too many requests were just sent. Wait a moment and try again.', logoutFailed: 'Logging out failed. Please try again.', invalidLink: 'This reset link is invalid or has expired. Request a new link below.',
+    newPassword: 'New password.', newPasswordText: 'Choose a new password for your account.', passwordSaved: 'Your new password has been saved.', back: '← To the website', deniedTitle: 'Access needed.', forgotTitle: 'Forgot password.', welcome: 'Welcome back.', deniedText: 'This account does not have admin rights yet. Add the user ID to the admins table in Supabase.', forgotText: 'Enter your email address. You will receive a link to choose a new password.', welcomeText: 'Your own place for your offer, stories and stock.',
+    email: 'Email address', password: 'Password', sendReset: 'Send reset link', backToLogin: '← Back to login', login: 'Log in', forgot: 'Forgot password?', logout: 'Log out', secured: 'Secured by Supabase Auth', demoSummary: 'Try the design and features', demoText: 'The demo environment only uses fictional data in this browser. It does not log you in to Supabase.', demoOpen: 'Open the demo environment',
+    sidebarTag: 'ADMIN AREA', navLabel: 'Admin navigation', overview: 'Overview', offer: 'Products & services', posts: 'Posts', stock: 'Stock', settings: 'Practice details', account: 'Account', viewSite: 'View the website', exitDemo: 'Exit demo', topbar: 'ADMIN', demoBadge: 'Demo environment', connected: 'Supabase connected', demoBanner: 'Sample data · changes are only saved in this browser.',
+  },
+  account: { kicker: 'YOUR ACCOUNT', title: 'Change password.', text: 'Choose a new password for the admin area.', demo: 'There is no account in the demo environment. Log in with Supabase to change your password.' },
+  dashboard: { kicker: 'GOOD TO SEE YOU', title: 'Everything at a glance.', text: 'A calm look at your practice.', offer: 'Products & services', published: 'Published posts', low: 'Products with low stock', start: 'GET STARTED', today: 'What would you like to do today?', addOffer: 'Add an offer', write: 'Write a story', updateStock: 'Update stock', attention: 'Stock that needs attention', allGood: 'Everything is in order. No products are below minimum stock.', inStock: (n: number) => `${n} in stock` },
+  publication: { publish: (name: string) => `Publish ${name}`, published: 'Published', hidden: 'Hidden' },
+  products: {
+    kicker: 'YOUR OFFER', title: 'Products & services.', text: 'Manage what your clients discover on the website.', add: 'Add new', name: 'Name', type: 'Type', price: 'Price', visibility: 'Visibility', actions: 'Actions', edit: (name: string) => `Edit ${name}`, remove: (name: string) => `Delete ${name}`, empty: 'Add your first product or service.',
+    deleteTitle: 'Delete offer?', deleteText: (name: string) => `“${name}” will be deleted, together with its stock and stock log.`, editTitle: 'Edit offer', newTitle: 'New offer', service: 'Service / treatment', category: 'Category', description: 'Description', priceField: 'Price (€) · empty = on request', duration: 'Duration (minutes) · optional', visible: 'Visible on the website',
+  },
+  postsAdmin: {
+    kicker: 'THE JOURNAL', title: 'Stories & news.', text: 'Write a blog post or share an announcement from the practice.', subscribers: (n: number) => ` On first publication, ${n} ${n === 1 ? 'subscriber receives' : 'subscribers receive'} an email.`, add: 'New post', titleCol: 'Title', date: 'Date', status: 'Status', empty: 'There are no posts yet. Write your first story.',
+    deleteTitle: 'Delete post?', deleteText: (title: string) => `“${title}” will be permanently deleted.`, editTitle: 'Edit post', newTitle: 'New post', blog: 'Blog / inspiration', excerpt: 'Short introduction', body: 'Post', bodyPlaceholder: 'Write your story. Leave an empty line between paragraphs.', publish: 'Publish on the website',
+  },
+  stock: {
+    kicker: 'ONLY VISIBLE TO YOU', title: 'Your personal stock.', text: 'Keep track of your products, with an overview of every change.', product: 'Product / item number', stock: 'Stock', minimum: 'Minimum', noSku: 'No item number', out: 'Out of stock', reorder: 'Reorder', ok: 'In stock', update: 'Update', settingsAria: (name: string) => `${name} stock settings`, empty: 'Add a product under Products & services to track stock.',
+    recent: 'Recent stock changes', noLog: 'Your stock log is still empty.', removedProduct: 'Deleted product', adjusted: 'Stock adjusted', updateTitle: 'Update stock', invalid: 'Use a whole number. Stock cannot go negative.', current: 'current stock', change: 'Change · positive = received, negative = used', reason: 'Reason', reasonPlaceholder: 'For example: delivery or sale', newStock: 'New stock', saveChange: 'Save change', settingsTitle: 'Stock settings', sku: 'Item number', minimumField: 'Minimum stock',
+  },
+  practice: { kicker: 'THE PRACTICE', title: 'Personal & reachable.', text: 'Update your contact details, introduction and logo.', logoHttps: 'Use an HTTPS link for the logo.', saved: 'Your practice details have been saved.', email: 'Email address', phone: 'Phone number', address: 'Address', region: 'Region', about: 'About Veronique', save: 'Save details', logoNote: 'Shown in the website header and footer, instead of the text “nefertem”.' },
+}
+
+const dictionaries: Record<Lang, Dict> = { nl, fr, en }
+
+// Picks the first supported language from the browser's preferred languages (Dutch by default).
+export function detectLanguage(preferred: readonly string[] = typeof navigator === 'undefined' ? [] : navigator.languages?.length ? navigator.languages : [navigator.language]): Lang {
+  for (const tag of preferred) {
+    const base = tag?.toLowerCase().split('-')[0]
+    if ((languages as readonly string[]).includes(base)) return base as Lang
+  }
+  return 'nl'
+}
+function initialLanguage(): Lang {
+  try { const saved = localStorage.getItem(storageKey); if (saved && (languages as readonly string[]).includes(saved)) return saved as Lang } catch { /* storage may be blocked */ }
+  return detectLanguage()
+}
+
+type I18n = { lang: Lang; t: Dict; setLang: (lang: Lang) => void; money: (value: number | null) => string; date: (value: string) => string }
+const Context = createContext<I18n>(null!)
+export function I18nProvider({ children }: { children: ReactNode }) {
+  const [lang, setLangState] = useState<Lang>(initialLanguage)
+  const setLang = useCallback((next: Lang) => { setLangState(next); try { localStorage.setItem(storageKey, next) } catch { /* storage may be blocked */ } }, [])
+  useEffect(() => {
+    document.documentElement.lang = lang
+    document.querySelector('meta[name="description"]')?.setAttribute('content', dictionaries[lang].meta.description)
+  }, [lang])
+  const value = useMemo<I18n>(() => {
+    const locale = locales[lang], t = dictionaries[lang]
+    const currency = new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 })
+    return { lang, t, setLang, money: v => v === null ? t.common.onRequest : currency.format(v), date: v => new Date(v).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' }) }
+  }, [lang, setLang])
+  return <Context.Provider value={value}>{children}</Context.Provider>
+}
+export const useI18n = () => useContext(Context)
+
+export function LanguageSwitch({ className = '' }: { className?: string }) {
+  const { lang, setLang, t } = useI18n()
+  return <div className={`lang-switch ${className}`} role="group" aria-label={t.langLabel}>{languages.map(code => <button key={code} type="button" lang={code} aria-pressed={lang === code} title={dictionaries[code].langName} aria-label={dictionaries[code].langName} onClick={() => setLang(code)}>{code.toUpperCase()}</button>)}</div>
+}

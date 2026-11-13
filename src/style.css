@@ -29,3 +29,10 @@
 .journal-signup{display:grid;grid-template-columns:1fr 1fr;gap:9%;align-items:center;background:var(--sage)}.journal-signup h2{margin:18px 0 20px}.journal-signup>div>p{font-size:15px;max-width:440px}.journal-signup form label:first-child{margin-top:0}.journal-signup .button{width:100%}.journal-signup.compact{grid-template-columns:1fr;gap:10px;padding:40px;margin:70px auto 0;max-width:650px;border-radius:5px}.journal-signup.compact h2{font-size:40px}.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 .email-notice{display:flex;align-items:center;justify-content:space-between;gap:15px;background:#e1e9d7;color:#3f5735;padding:15px 25px;font-size:14px;line-height:1.6}.email-notice.data-notice{background:#f2e4cf;color:inherit}.email-notice button{display:flex;padding:4px;margin:0;text-decoration:none}
 @media(max-width:760px){.journal-signup{grid-template-columns:1fr;gap:28px}.journal-signup.compact{padding:26px;margin-top:45px}.journal-signup.compact h2{font-size:34px}.email-notice{padding:12px 7%;font-size:12px}}
+.lang-switch{display:flex;gap:2px;font-size:11px;letter-spacing:.08em}
+.lang-switch button{padding:6px 7px;border-radius:2px;color:var(--muted)}
+.lang-switch button[aria-pressed="true"]{color:inherit;text-decoration:underline;text-underline-offset:4px}
+.lang-switch button:hover{color:inherit}
+.login-lang{position:absolute;top:24px;right:30px}
+.image-field-note{margin:-6px 0 12px}
+@media(max-width:1000px){.nav .lang-switch{margin-top:15px}.login-lang{right:20px;top:14px}}

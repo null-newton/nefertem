@@ -7,12 +7,13 @@ export const supabase = configured ? createClient(url, key, { auth: { flowType: 
 // Base URL of the site without query or hash, used for links in auth and journal emails.
 export const siteUrl = () => `${window.location.origin}${window.location.pathname}`
 // Calls an edge function and turns its JSON error into a readable message.
-export async function callFunction<T = Record<string, unknown>>(name: string, body: object, fallback: string): Promise<T> {
+// Server messages are Dutch, so pass useServerMessage=false to show the (translated) fallback instead.
+export async function callFunction<T = Record<string, unknown>>(name: string, body: object, fallback: string, useServerMessage = true): Promise<T> {
   if (!supabase) throw new Error('Supabase is niet ingesteld.')
   const { data, error } = await supabase.functions.invoke(name, { body })
   if (error) {
     let message = fallback
-    if (error.context instanceof Response) { try { const d = await error.context.json(); if (typeof d.error === 'string') message = d.error } catch { /* keep fallback */ } }
+    if (error.context instanceof Response) { try { const d = await error.context.json(); if (useServerMessage && typeof d.error === 'string') message = d.error } catch { /* keep fallback */ } }
     throw new Error(message)
   }
   return data as T

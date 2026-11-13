@@ -34,7 +34,7 @@ insert into public.admins(user_id) values ('HIER-HET-GEBRUIKERS-ID');
 ```
 
 4. Schakel openbare registratie uit bij de Auth-instellingen als deze niet nodig is. Stel de uiteindelijke Site URL in op je eigen domein.
-5. Ga naar `/admin`, log in en vul onder **Praktijkgegevens** het e-mailadres en telefoonnummer aan. Je kunt daar ook de HTTPS-link naar het toekomstige logo invoeren.
+5. Ga naar `/admin`, log in en vul onder **Praktijkgegevens** het e-mailadres en telefoonnummer aan. Daar kun je ook het logo uploaden (of een HTTPS-afbeeldingslink plakken); het verschijnt dan in de kop en voet van de website in plaats van de tekst “nefertem”.
 6. Voeg producten, diensten en berichten toe. Nieuwe inhoud begint als concept; vink zichtbaarheid/publicatie aan wanneer de inhoud klaar is.
 
 De publieke sleutel geeft geen beheerrechten. Alleen gebruikers in `admins` kunnen wijzigen. Bezoekers lezen uitsluitend gepubliceerd aanbod, gepubliceerde berichten en openbare praktijkgegevens. Voorraad en voorraadgeschiedenis zijn afzonderlijke tabellen met beheerdersrechten. Voorraadwijzigingen gaan via `adjust_stock`, met rijvergrendeling, reden, gebruiker en logboek. Een negatieve voorraad wordt geweigerd.
@@ -51,9 +51,15 @@ De publieke sleutel geeft geen beheerrechten. Alleen gebruikers in `admins` kunn
 
 Op het inlogscherm kan een expliciete **voorbeeldomgeving** worden geopend. Deze gebruikt fictieve inhoud in browser-localStorage, geen Supabase-login of database. Die gegevens zijn duidelijk gemarkeerd. Afsluiten herlaadt de echte omgeving. Zonder Supabase-configuratie opent de publieke site met gemarkeerde voorbeeldinhoud. Met configuratie worden fouten getoond in plaats van stilzwijgend fictieve databasegegevens te gebruiken.
 
+## Talen
+
+De website en de beheeromgeving zijn beschikbaar in het Nederlands, Frans en Engels. Bij het eerste bezoek wordt de taal gekozen op basis van de browsertaal (`navigator.languages`); andere talen vallen terug op Nederlands. Bezoekers kunnen rechtsboven (en in de zijbalk van de beheeromgeving) wisselen via NL / FR / EN; die keuze wordt in de browser onthouden. Alle teksten staan in [src/i18n.tsx](src/i18n.tsx).
+
+Alleen de vaste interfaceteksten worden vertaald. Zelf ingevoerde inhoud (aanbod, berichten, de tekst onder *Over Veronique*) verschijnt zoals ingevoerd. Meldingen van de Supabase-functies (uploads en het journal) zijn Nederlands; in het Frans en Engels toont de site daarvoor een vertaalde algemene melding. De bevestigings- en nieuwsmails van het journal blijven Nederlands.
+
 ## Afbeeldingen uploaden via ImgBB
 
-Bij producten, diensten en berichten kun je een bestand kiezen of een bestaande HTTPS-afbeeldingslink plakken. De uploadfunctie stuurt het bestand naar ImgBB en vult de directe afbeeldings-URL automatisch in. Alleen de URL wordt bij het aanbod of bericht opgeslagen; er is geen Supabase Storage-bucket nodig. Uploaden accepteert JPG, PNG, WebP en GIF tot 5 MB en is uitsluitend beschikbaar voor ingelogde beheerders. De voorbeeldomgeving ondersteunt alleen afbeeldingslinks.
+Bij producten, diensten, berichten en het logo kun je een bestand kiezen of een bestaande HTTPS-afbeeldingslink plakken. De uploadfunctie stuurt het bestand naar ImgBB en vult de directe afbeeldings-URL automatisch in. Alleen de URL wordt bij het aanbod of bericht opgeslagen; er is geen Supabase Storage-bucket nodig. Uploaden accepteert JPG, PNG, WebP en GIF tot 5 MB en is uitsluitend beschikbaar voor ingelogde beheerders. De voorbeeldomgeving ondersteunt alleen afbeeldingslinks.
 
 De ImgBB-sleutel staat uitsluitend in `IMGBB_API_KEY` op de server. Gebruik hiervoor nooit een `VITE_`-variabele. Het lokale bestand `supabase/functions/.env.local` staat buiten Git. Bij een nieuwe installatie kun je `supabase/functions/.env.example` kopiëren naar dat bestand en je sleutel invullen.
 
