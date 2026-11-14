@@ -3,7 +3,7 @@ import { Plus, RefreshCw, Reply, Send, Trash2, Paperclip } from 'lucide-react'
 import { supabase, callFunction } from './lib/supabase'
 import { useData } from './Data'
 import { useI18n } from './i18n'
-import { AdminTitle, Modal, SearchBox } from './Admin'
+import { Modal, SearchBox } from './Admin'
 import type { MailMessage } from './types'
 
 type Folder = 'in' | 'out'
@@ -76,7 +76,7 @@ export function MailPage() {
   }
 
   return <>
-    <AdminTitle kicker={s.kicker} title={s.title} description={s.text} action={<button className="button dark" onClick={() => { setNotice(''); setDraft({ to: '', cc: '', subject: '', text: '' }) }}><Plus size={17} />{s.compose}</button>} />
+    <span className="eyebrow mail-kicker">{s.kicker}</span>
     {d.demo && <p className="form-success">{s.demo}</p>}
     {error && <p role="alert" className="form-error">{error}</p>}
     {notice && <p role="status" className="form-success">{notice}</p>}
@@ -85,7 +85,10 @@ export function MailPage() {
         <button role="tab" aria-selected={folder === 'in'} className={folder === 'in' ? 'active' : ''} onClick={() => setFolder('in')}>{s.inbox}{unread > 0 && <span className="mail-count">{s.unread(unread)}</span>}</button>
         <button role="tab" aria-selected={folder === 'out'} className={folder === 'out' ? 'active' : ''} onClick={() => setFolder('out')}>{s.sent}</button>
       </div>
-      <button className="button outline" disabled={syncing || d.demo} onClick={() => void sync()}><RefreshCw size={16} className={syncing ? 'spin' : ''} />{syncing ? s.refreshing : s.refresh}</button>
+      <div className="mail-actions">
+        <button className="button outline" disabled={syncing || d.demo} onClick={() => void sync()}><RefreshCw size={16} className={syncing ? 'spin' : ''} />{syncing ? s.refreshing : s.refresh}</button>
+        <button className="button dark" onClick={() => { setNotice(''); setDraft({ to: '', cc: '', subject: '', text: '' }) }}><Plus size={17} />{s.compose}</button>
+      </div>
     </div>
     <SearchBox value={search} onChange={setSearch} />
     <div className="table-wrap"><table className="mail-table"><thead><tr><th>{folder === 'in' ? s.from : s.to}</th><th>{s.subject}</th><th>{s.date}</th></tr></thead><tbody>

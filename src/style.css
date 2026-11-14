@@ -49,3 +49,6 @@
 @media(max-width:760px){.mail-table th:nth-child(3),.mail-table td:nth-child(3){display:none}}
 .admin-title>.button{white-space:nowrap}
 @media(max-width:760px){.admin-sidebar{flex-direction:row;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;column-gap:16px}.admin-sidebar nav{order:3;width:100%}.sidebar-bottom{position:static;align-items:flex-end;text-align:right}}
+@media(min-width:761px){.admin-sidebar{overflow-y:auto;overscroll-behavior:contain}}@media(min-width:761px) and (max-height:720px){.admin-sidebar{padding-top:24px;padding-bottom:20px}.admin-sidebar nav{margin-top:26px;gap:2px}.admin-sidebar nav a{padding:10px 13px}.sidebar-bottom{padding-top:18px;gap:12px}}
+.mail-actions{display:flex;gap:10px;flex-wrap:wrap}.mail-actions .button{margin:0;min-height:44px;padding:11px 18px;white-space:nowrap}.mail-tabs button{min-height:44px}
+.mail-kicker{display:block;margin:43px 0 22px}@media(max-width:760px){.mail-kicker{margin-top:30px}}
