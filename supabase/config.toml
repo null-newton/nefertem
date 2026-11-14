@@ -6,3 +6,8 @@ verify_jwt = false
 [functions.journal]
 # Public sign-up/confirm/unsubscribe; the notify action checks the user token and is_admin itself.
 verify_jwt = false
+
+[functions.mail]
+# Resend-webhooks hebben geen Supabase-token: de handtekening (RESEND_WEBHOOK_SECRET) wordt gecontroleerd.
+# Acties uit de beheeromgeving controleren het gebruikerstoken en is_admin zelf.
+verify_jwt = false

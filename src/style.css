@@ -36,3 +36,16 @@
 .login-lang{position:absolute;top:24px;right:30px}
 .image-field-note{margin:-6px 0 12px}
 @media(max-width:1000px){.nav .lang-switch{margin-top:15px}.login-lang{right:20px;top:14px}}
+.mail-toolbar{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:18px;flex-wrap:wrap}.mail-toolbar .button{display:inline-flex;align-items:center;gap:8px}
+.mail-tabs{display:flex;gap:6px}.mail-tabs button{padding:9px 16px;border:1px solid var(--line);border-radius:4px;background:transparent;font-size:13px;display:flex;align-items:center;gap:8px}.mail-tabs button.active{background:#414936;color:#f9f7ee;border-color:#414936}
+.mail-count{font-size:11px;background:#f3e6d3;color:#a56a29;border-radius:10px;padding:2px 8px}
+.mail-table tbody tr{cursor:pointer}.mail-table tbody tr:hover{background:#f1f2ea}.mail-table tr.unread td{font-weight:600}.mail-table tr.unread .table-sub{font-weight:400}
+.mail-open{background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer}.mail-clip{margin-left:6px;vertical-align:-2px;color:var(--muted)}.mail-date{white-space:nowrap}
+.mail-meta{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px;margin:0 0 18px}.mail-meta dt{color:var(--muted)}.mail-meta dd{margin:0;word-break:break-word}
+.mail-frame{width:100%;height:48svh;border:1px solid var(--line);border-radius:4px;background:#fff}
+.mail-text{white-space:pre-wrap;font:inherit;font-size:14px;line-height:1.6;border:1px solid var(--line);border-radius:4px;padding:16px;background:#fff;max-height:48svh;overflow:auto;margin:0}
+.mail-attachments{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:16px}.mail-attachments .small-button{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:3px;font-size:12px;padding:7px 12px}
+.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:760px){.mail-table th:nth-child(3),.mail-table td:nth-child(3){display:none}}
+.admin-title>.button{white-space:nowrap}
+@media(max-width:760px){.admin-sidebar{flex-direction:row;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;column-gap:16px}.admin-sidebar nav{order:3;width:100%}.sidebar-bottom{position:static;align-items:flex-end;text-align:right}}

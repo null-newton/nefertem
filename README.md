@@ -47,7 +47,7 @@ De publieke sleutel geeft geen beheerrechten. Alleen gebruikers in `admins` kunn
 - `/over`: Veronique en de praktijk.
 - `/journal` en `/journal/:id`: blogs en aankondigingen.
 - `/contact`: adres, route, telefoon en e-mail. Het formulier opent de eigen e-mailapp zodra een e-mailadres is ingevuld; het verzendt zelf geen berichten en doet geen automatische boekingen.
-- `/admin`: Supabase-login, overzicht, producten/diensten toevoegen/bewerken/verwijderen, berichten toevoegen/bewerken/verwijderen/publiceren, voorraad wijzigen, minimumvoorraad en artikelnummers instellen, voorraadlogboek en praktijkgegevens.
+- `/admin`: Supabase-login, overzicht, producten/diensten toevoegen/bewerken/verwijderen, berichten toevoegen/bewerken/verwijderen/publiceren, e-mail lezen/versturen/beantwoorden via Resend, voorraad wijzigen, minimumvoorraad en artikelnummers instellen, voorraadlogboek en praktijkgegevens.
 
 Op het inlogscherm kan een expliciete **voorbeeldomgeving** worden geopend. Deze gebruikt fictieve inhoud in browser-localStorage, geen Supabase-login of database. Die gegevens zijn duidelijk gemarkeerd. Afsluiten herlaadt de echte omgeving. Zonder Supabase-configuratie opent de publieke site met gemarkeerde voorbeeldinhoud. Met configuratie worden fouten getoond in plaats van stilzwijgend fictieve databasegegevens te gebruiken.
 
@@ -102,6 +102,29 @@ npx supabase functions deploy journal --project-ref ubgunugdegfzqqidsxcu
 ```
 
 Abonnees staan in de tabel `subscribers`; alleen de edge function kan ze toevoegen of verwijderen. In **Berichten** zie je hoeveel bevestigde abonnees er zijn. Lukt het versturen niet, dan zie je een melding en probeer je het opnieuw door het bericht nog eens op te slaan. Testen zonder echte mails: `deno test supabase/functions/journal/handler_test.ts`.
+
+## E-mail in de beheeromgeving (Resend)
+
+Onder **/admin/email** lees en beantwoord je e-mail zonder IMAP of een aparte mailapp. Versturen én ontvangen lopen via [Resend](https://resend.com), dezelfde dienst als de journal-mails:
+
+- **Ontvangen:** Resend ontvangt de mail voor je domein (MX-record) en meldt elk nieuw bericht via een webhook (`email.received`) aan de edge function `mail`. Die controleert de handtekening, haalt inhoud en bijlagegegevens op bij Resend en bewaart het bericht in `mail_messages`.
+- **Vernieuwen:** bij het openen van de pagina en met de knop *Vernieuwen* haalt de functie ook recent ontvangen mail op via de Resend-API. Een gemiste webhook gaat zo niet verloren; zonder webhook werkt de inbox ook, alleen niet automatisch.
+- **Versturen en beantwoorden:** vanaf `MAIL_INBOX_FROM` (of `MAIL_FROM`). Antwoorden krijgen `In-Reply-To`/`References`, zodat ze bij de klant in dezelfde conversatie verschijnen. Verzonden mail staat onder *Verzonden*.
+- **Veiligheid:** alleen beheerders (`is_admin`) kunnen e-mail lezen, versturen of bijlagen openen. HTML-mails worden getoond in een afgeschermd frame zonder scripts. Bijlagen worden via een kortlevende Resend-downloadlink geopend.
+
+Eenmalig instellen:
+
+1. Voer [supabase/migrations/003_mail.sql](supabase/migrations/003_mail.sql) uit in de SQL Editor.
+2. Zet bij Resend onder **Domains** *Receiving* aan voor je domein en voeg het getoonde MX-record toe bij je DNS-provider. Heeft het domein al MX-records (bijvoorbeeld een bestaande mailbox), gebruik dan een subdomein zoals `mail.jouwdomein.be`, anders komt de mail niet meer in je huidige mailbox. Om te testen kun je ook het gratis `…@<id>.resend.app`-adres gebruiken (Emails → Receiving).
+3. Maak bij Resend onder **Webhooks** een webhook voor het event `email.received` met als URL `https://ubgunugdegfzqqidsxcu.supabase.co/functions/v1/mail`. Kopieer het signing secret (`whsec_…`).
+4. Maak bij Resend onder **API Keys** een sleutel met **Full access** (een sleutel met alleen *Sending access* kan geen ontvangen mail lezen) en zet die in `RESEND_INBOX_API_KEY`. Vul ook `MAIL_INBOX_FROM` en `RESEND_WEBHOOK_SECRET` in `supabase/functions/.env.local` in (zie `.env.example`) en activeer:
+
+```sh
+npx supabase secrets set --env-file supabase/functions/.env.local --project-ref ubgunugdegfzqqidsxcu
+npx supabase functions deploy mail --project-ref ubgunugdegfzqqidsxcu
+```
+
+Tip: zet `MAIL_REPLY_TO` op hetzelfde ontvangstadres, dan komen antwoorden op journal-mails ook in deze inbox. Verwijderen in de beheeromgeving verwijdert alleen de kopie in Supabase, niet bij Resend. Lokaal testen zonder echte mails: `deno test supabase/functions/mail/`.
 
 ## Publicatie
 
