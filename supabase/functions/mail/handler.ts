@@ -53,7 +53,7 @@ export function createMailHandler(c: Config, f: typeof fetch = fetch) {
     if (!r.ok) throw new Error(`resend ${r.status}`)
     const m: Received = await r.json()
     const row = {
-      resend_id: m.id, direction: 'in', from_address: m.headers?.from || m.from || '', to_addresses: m.to ?? [], cc_addresses: m.cc ?? [], reply_to: m.reply_to ?? [],
+      resend_id: m.id, direction: 'in', from_address: m.headers?.from || m.from || '', to_addresses: m.to ?? [], cc_addresses: m.cc ?? [], reply_to: m.reply_to?.length ? m.reply_to : (m.headers?.['reply-to'] ? [m.headers['reply-to'].match(/<([^>]+)>/)?.[1] ?? m.headers['reply-to'].trim()] : []),
       subject: m.subject ?? '', text_body: m.text ?? '', html_body: m.html ?? '', message_id: m.message_id ?? '',
       in_reply_to: m.headers?.['in-reply-to'] ?? '', created_at: m.created_at ?? new Date().toISOString(),
       attachments: (m.attachments ?? []).map(a => ({ id: a.id, filename: a.filename ?? '', content_type: a.content_type ?? '', size: a.size ?? 0 })),
@@ -127,7 +127,7 @@ export function createMailHandler(c: Config, f: typeof fetch = fetch) {
     return null
   }
 
-  // Public contact form: stored straight in the inbox as a received message, with the visitor as reply address.
+  // Public contact form: mailed to the inbox address via Resend, with the visitor as reply address.
   async function contact(input: Record<string, unknown>, ip: string) {
     const str = (v: unknown) => typeof v === 'string' ? v.trim() : ''
     const name = str(input.name).replace(/[\r\n<>"]/g, ' ').slice(0, 120).trim(), email = str(input.email).toLowerCase(), subject = str(input.subject).replace(/[\r\n]/g, ' ')
@@ -140,12 +140,12 @@ export function createMailHandler(c: Config, f: typeof fetch = fetch) {
     if (input.website) return ok // honeypot: bots fill every field
     const limited = await rateLimit(email, ip)
     if (limited) return [429, { error: limited }] as const
-    const to = c.mailFrom.match(/<([^>]+)>/)?.[1] ?? c.mailFrom
-    const saved = await db('mail_messages', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({
-      resend_id: `contact_${crypto.randomUUID()}`, direction: 'in', from_address: `${name} <${email}>`, to_addresses: [to], reply_to: [email],
-      subject: `Contactformulier: ${subject}`, text_body: message, html_body: '',
-    }) })
-    if (!saved.ok) throw new Error(`db ${saved.status}`)
+    // Sent through Resend to our own receiving address, so it arrives like any other mail: visible in Resend
+    // and stored in the inbox by the email.received webhook. Reply-To is the visitor, so "Beantwoorden" reaches them.
+    const inbox = c.mailFrom.match(/<([^>]+)>/)?.[1] ?? c.mailFrom
+    const text = `${message}\n\n—\nVia het contactformulier van de website\nNaam: ${name}\nE-mail: ${email}`
+    const r = await resend('/emails', { method: 'POST', body: JSON.stringify({ from: `${name} via Nefertem <${inbox}>`, to: [inbox], reply_to: email, subject: `Contactformulier: ${subject}`, text, html: textToHtml(text) }) })
+    if (!r.ok) throw new Error(`resend ${r.status}`)
     return ok
   }
 

@@ -100,28 +100,43 @@ Deno.test('attachment returns a signed download link for received mail', async (
   assert((await r.json()).url.startsWith('https://inbound-cdn.resend.com/'), 'download link returned')
   assert(calls.some(c => c.url.includes('direction=eq.in')), 'only received mail has attachments')
 })
-Deno.test('public contact form stores the message in the inbox without a login', async () => {
+Deno.test('public contact form mails the inbox via Resend without a login', async () => {
   const calls: Call[] = []
   const h = createMailHandler(config, mockFetch(calls))
   const contact = (body: object) => new Request('https://test/functions/v1/mail', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'contact', ...body }) })
   assert((await h(contact({ name: 'Sofie', email: 'geen-mail', subject: 'x', message: 'y' }))).status === 400, 'bad address rejected')
   assert((await h(contact({ name: '', email: 'a@b.be', subject: 'x', message: 'y' }))).status === 400, 'missing name rejected')
   assert((await h(contact({ name: 'Sofie', email: 'a@b.be', subject: 'x', message: '' }))).status === 400, 'empty message rejected')
-  const r = await h(contact({ name: 'Sofie <x>\nPeeters', email: ' Sofie@B.be ', subject: 'Afspraak\r\nBcc: x', message: 'Hallo Veronique' }))
+  assert(!resendCalls(calls).length, 'nothing sent for invalid input')
+  const r = await h(contact({ name: 'Sofie <x>\nPeeters', email: ' Sofie@B.be ', subject: 'Afspraak\r\nBcc: x', message: '<b>Hallo</b> Veronique' }))
   assert(r.status === 200, 'accepted')
-  const row = calls.find(c => c.method === 'POST' && c.url.endsWith('/mail_messages'))!.body as Record<string, unknown>
-  assert(row.direction === 'in' && (row.reply_to as string[]).join() === 'sofie@b.be' && String(row.resend_id).startsWith('contact_'), 'stored as received with reply address')
-  assert(row.from_address === 'Sofie  x  Peeters <sofie@b.be>' && row.subject === 'Contactformulier: Afspraak  Bcc: x' && (row.to_addresses as string[]).join() === 'info@test.be', 'name and subject sanitised')
-  assert(!calls.some(c => c.url.endsWith('/auth/v1/user')) && !resendCalls(calls).length, 'no login check, no Resend call')
+  const mail = resendCalls(calls)[0].body as { from: string; to: string[]; reply_to: string; subject: string; text: string; html: string }
+  assert(mail.from === 'Sofie  x  Peeters via Nefertem <info@test.be>' && mail.to.join() === 'info@test.be', 'sent from and to our own address, visitor name shown')
+  assert(mail.reply_to === 'sofie@b.be', 'reply goes to the visitor')
+  assert(mail.subject === 'Contactformulier: Afspraak  Bcc: x', 'subject sanitised')
+  assert(mail.text.includes('E-mail: sofie@b.be') && mail.html.includes('&lt;b&gt;Hallo'), 'details in body, html escaped')
+  assert(!calls.some(c => c.url.endsWith('/auth/v1/user')) && !calls.some(c => c.method === 'POST' && c.url.endsWith('/mail_messages')), 'no login check, stored only via the webhook')
+})
+Deno.test('contact form: failed Resend call is reported', async () => {
+  const r = await createMailHandler(config, mockFetch([], {}, { resendOk: false }))(new Request('https://test/functions/v1/mail', { method: 'POST', body: JSON.stringify({ action: 'contact', name: 'Sofie', email: 'a@b.be', subject: 'x', message: 'y' }) }))
+  assert(r.status === 502, 'error returned')
+})
+Deno.test('received mail without a reply_to field falls back to the Reply-To header', async () => {
+  const calls: Call[] = []
+  const base = mockFetch(calls)
+  const f = (async (input: RequestInfo | URL, init?: RequestInit) => String(input).includes('/emails/receiving/em_9') ? Response.json({ ...received, id: 'em_9', headers: { from: 'Sofie via Nefertem <info@test.be>', 'reply-to': 'Sofie <sofie@b.be>' } }) : base(input, init)) as typeof fetch
+  await createMailHandler(config, f)(await signed(JSON.stringify({ type: 'email.received', data: { email_id: 'em_9' } })))
+  const row = calls.find(c => c.method === 'POST' && c.url.includes('/mail_messages'))!.body as { reply_to: string[] }
+  assert(row.reply_to.join() === 'sofie@b.be', 'reply address taken from header')
 })
 Deno.test('contact form: honeypot ignored silently and floods are throttled', async () => {
   const calls: Call[] = []
   const body = (extra: object) => new Request('https://test/functions/v1/mail', { method: 'POST', body: JSON.stringify({ action: 'contact', name: 'Bot', email: 'a@b.be', subject: 'x', message: 'y', ...extra }) })
   assert((await createMailHandler(config, mockFetch(calls))(body({ website: 'spam.example' }))).status === 200, 'honeypot looks accepted')
-  assert(!calls.length, 'honeypot stores nothing')
+  assert(!calls.length, 'honeypot sends nothing')
   const full = createMailHandler(config, mockFetch(calls, { 'mail_messages?select=id': [1, 2, 3, 4, 5].map(i => ({ id: String(i) })) }))
   assert((await full(body({}))).status === 429, 'sixth message from one address within an hour refused')
-  assert(!calls.some(c => c.method === 'POST' && c.url.endsWith('/mail_messages')), 'throttled message not stored')
+  assert(!resendCalls(calls).length, 'throttled message not sent')
 })
 Deno.test('contact rate limiter: per IP, hashed, and site-wide', async () => {
   const calls: Call[] = []
@@ -134,7 +149,7 @@ Deno.test('contact rate limiter: per IP, hashed, and site-wide', async () => {
   calls.length = 0
   const ipFull = createMailHandler(config, mockFetch(calls, { [`contact_attempts?select=id&ip_hash=eq.${encodeURIComponent(attempt.ip_hash)}`]: [{ id: 1 }, { id: 2 }, { id: 3 }] }))
   assert((await ipFull(req('203.0.113.7'))).status === 429, 'same IP throttled after 3 in 10 minutes')
-  assert(!calls.some(c => c.method === 'POST'), 'nothing stored when throttled')
+  assert(!calls.some(c => c.method === 'POST'), 'nothing logged or sent when throttled')
   calls.length = 0
   const siteFull = createMailHandler(config, mockFetch(calls, { 'contact_attempts?select=id&created_at': Array.from({ length: 50 }, (_, i) => ({ id: i })) }))
   const r = await siteFull(req('198.51.100.1'))
