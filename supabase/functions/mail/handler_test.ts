@@ -100,3 +100,43 @@ Deno.test('attachment returns a signed download link for received mail', async (
   assert((await r.json()).url.startsWith('https://inbound-cdn.resend.com/'), 'download link returned')
   assert(calls.some(c => c.url.includes('direction=eq.in')), 'only received mail has attachments')
 })
+Deno.test('public contact form stores the message in the inbox without a login', async () => {
+  const calls: Call[] = []
+  const h = createMailHandler(config, mockFetch(calls))
+  const contact = (body: object) => new Request('https://test/functions/v1/mail', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'contact', ...body }) })
+  assert((await h(contact({ name: 'Sofie', email: 'geen-mail', subject: 'x', message: 'y' }))).status === 400, 'bad address rejected')
+  assert((await h(contact({ name: '', email: 'a@b.be', subject: 'x', message: 'y' }))).status === 400, 'missing name rejected')
+  assert((await h(contact({ name: 'Sofie', email: 'a@b.be', subject: 'x', message: '' }))).status === 400, 'empty message rejected')
+  const r = await h(contact({ name: 'Sofie <x>\nPeeters', email: ' Sofie@B.be ', subject: 'Afspraak\r\nBcc: x', message: 'Hallo Veronique' }))
+  assert(r.status === 200, 'accepted')
+  const row = calls.find(c => c.method === 'POST' && c.url.endsWith('/mail_messages'))!.body as Record<string, unknown>
+  assert(row.direction === 'in' && (row.reply_to as string[]).join() === 'sofie@b.be' && String(row.resend_id).startsWith('contact_'), 'stored as received with reply address')
+  assert(row.from_address === 'Sofie  x  Peeters <sofie@b.be>' && row.subject === 'Contactformulier: Afspraak  Bcc: x' && (row.to_addresses as string[]).join() === 'info@test.be', 'name and subject sanitised')
+  assert(!calls.some(c => c.url.endsWith('/auth/v1/user')) && !resendCalls(calls).length, 'no login check, no Resend call')
+})
+Deno.test('contact form: honeypot ignored silently and floods are throttled', async () => {
+  const calls: Call[] = []
+  const body = (extra: object) => new Request('https://test/functions/v1/mail', { method: 'POST', body: JSON.stringify({ action: 'contact', name: 'Bot', email: 'a@b.be', subject: 'x', message: 'y', ...extra }) })
+  assert((await createMailHandler(config, mockFetch(calls))(body({ website: 'spam.example' }))).status === 200, 'honeypot looks accepted')
+  assert(!calls.length, 'honeypot stores nothing')
+  const full = createMailHandler(config, mockFetch(calls, { 'mail_messages?select=id': [1, 2, 3, 4, 5].map(i => ({ id: String(i) })) }))
+  assert((await full(body({}))).status === 429, 'sixth message from one address within an hour refused')
+  assert(!calls.some(c => c.method === 'POST' && c.url.endsWith('/mail_messages')), 'throttled message not stored')
+})
+Deno.test('contact rate limiter: per IP, hashed, and site-wide', async () => {
+  const calls: Call[] = []
+  const req = (ip: string) => new Request('https://test/functions/v1/mail', { method: 'POST', headers: { 'x-forwarded-for': `${ip}, 10.0.0.1` }, body: JSON.stringify({ action: 'contact', name: 'Sofie', email: 'a@b.be', subject: 'x', message: 'y' }) })
+  const ok = await createMailHandler(config, mockFetch(calls))(req('203.0.113.7'))
+  assert(ok.status === 200, 'first message accepted')
+  const attempt = calls.find(c => c.method === 'POST' && c.url.endsWith('/contact_attempts'))!.body as { ip_hash: string }
+  assert(attempt.ip_hash && !attempt.ip_hash.includes('203.0.113.7'), 'attempt logged with hashed IP only')
+  assert(calls.some(c => c.method === 'DELETE' && c.url.includes('/contact_attempts?created_at=lt.')), 'old attempts cleaned up')
+  calls.length = 0
+  const ipFull = createMailHandler(config, mockFetch(calls, { [`contact_attempts?select=id&ip_hash=eq.${encodeURIComponent(attempt.ip_hash)}`]: [{ id: 1 }, { id: 2 }, { id: 3 }] }))
+  assert((await ipFull(req('203.0.113.7'))).status === 429, 'same IP throttled after 3 in 10 minutes')
+  assert(!calls.some(c => c.method === 'POST'), 'nothing stored when throttled')
+  calls.length = 0
+  const siteFull = createMailHandler(config, mockFetch(calls, { 'contact_attempts?select=id&created_at': Array.from({ length: 50 }, (_, i) => ({ id: i })) }))
+  const r = await siteFull(req('198.51.100.1'))
+  assert(r.status === 429 && (await r.json()).error.includes('druk'), 'site-wide cap applies to new IPs too')
+})

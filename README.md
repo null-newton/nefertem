@@ -46,7 +46,7 @@ De publieke sleutel geeft geen beheerrechten. Alleen gebruikers in `admins` kunn
 - `/thuisverpleging`: zorgintroductie en diensten.
 - `/over`: Veronique en de praktijk.
 - `/journal` en `/journal/:id`: blogs en aankondigingen.
-- `/contact`: adres, route, telefoon en e-mail. Het formulier opent de eigen e-mailapp zodra een e-mailadres is ingevuld; het verzendt zelf geen berichten en doet geen automatische boekingen.
+- `/contact`: adres, route, telefoon en e-mail. Het formulier stuurt het bericht rechtstreeks naar de inbox in de beheeromgeving (*E-mail*), met het adres van de bezoeker als antwoordadres. Het doet geen automatische boekingen.
 - `/admin`: Supabase-login, overzicht, producten/diensten toevoegen/bewerken/verwijderen, berichten toevoegen/bewerken/verwijderen/publiceren, e-mail lezen/versturen/beantwoorden via Resend, voorraad wijzigen, minimumvoorraad en artikelnummers instellen, voorraadlogboek en praktijkgegevens.
 
 Op het inlogscherm kan een expliciete **voorbeeldomgeving** worden geopend. Deze gebruikt fictieve inhoud in browser-localStorage, geen Supabase-login of database. Die gegevens zijn duidelijk gemarkeerd. Afsluiten herlaadt de echte omgeving. Zonder Supabase-configuratie opent de publieke site met gemarkeerde voorbeeldinhoud. Met configuratie worden fouten getoond in plaats van stilzwijgend fictieve databasegegevens te gebruiken.
@@ -110,11 +110,12 @@ Onder **/admin/email** lees en beantwoord je e-mail zonder IMAP of een aparte ma
 - **Ontvangen:** Resend ontvangt de mail voor je domein (MX-record) en meldt elk nieuw bericht via een webhook (`email.received`) aan de edge function `mail`. Die controleert de handtekening, haalt inhoud en bijlagegegevens op bij Resend en bewaart het bericht in `mail_messages`.
 - **Vernieuwen:** bij het openen van de pagina en met de knop *Vernieuwen* haalt de functie ook recent ontvangen mail op via de Resend-API. Een gemiste webhook gaat zo niet verloren; zonder webhook werkt de inbox ook, alleen niet automatisch.
 - **Versturen en beantwoorden:** vanaf `MAIL_INBOX_FROM` (of `MAIL_FROM`). Antwoorden krijgen `In-Reply-To`/`References`, zodat ze bij de klant in dezelfde conversatie verschijnen. Verzonden mail staat onder *Verzonden*.
+- **Contactformulier:** berichten van `/contact` komen via de actie `contact` van dezelfde functie meteen in de inbox, met onderwerp *Contactformulier: …*. *Beantwoorden* gaat naar de bezoeker. Tegen misbruik: een verborgen honeypotveld en een rate limiter (per IP-adres max. 3 berichten per 10 minuten en 10 per dag, per e-mailadres 5 per uur, en voor de hele site 50 per uur). IP-adressen worden alleen als hash bewaard in `contact_attempts` en na een dag opgeruimd. De limieten staan bovenaan `supabase/functions/mail/handler.ts`.
 - **Veiligheid:** alleen beheerders (`is_admin`) kunnen e-mail lezen, versturen of bijlagen openen. HTML-mails worden getoond in een afgeschermd frame zonder scripts. Bijlagen worden via een kortlevende Resend-downloadlink geopend.
 
 Eenmalig instellen:
 
-1. Voer [supabase/migrations/003_mail.sql](supabase/migrations/003_mail.sql) uit in de SQL Editor.
+1. Voer [supabase/migrations/003_mail.sql](supabase/migrations/003_mail.sql) en daarna [005_contact_rate_limit.sql](supabase/migrations/005_contact_rate_limit.sql) uit in de SQL Editor.
 2. Zet bij Resend onder **Domains** *Receiving* aan voor je domein en voeg het getoonde MX-record toe bij je DNS-provider. Heeft het domein al MX-records (bijvoorbeeld een bestaande mailbox), gebruik dan een subdomein zoals `mail.jouwdomein.be`, anders komt de mail niet meer in je huidige mailbox. Om te testen kun je ook het gratis `…@<id>.resend.app`-adres gebruiken (Emails → Receiving).
 3. Maak bij Resend onder **Webhooks** een webhook voor het event `email.received` met als URL `https://ubgunugdegfzqqidsxcu.supabase.co/functions/v1/mail`. Kopieer het signing secret (`whsec_…`).
 4. Maak bij Resend onder **API Keys** een sleutel met **Full access** (een sleutel met alleen *Sending access* kan geen ontvangen mail lezen) en zet die in `RESEND_INBOX_API_KEY`. Vul ook `MAIL_INBOX_FROM` en `RESEND_WEBHOOK_SECRET` in `supabase/functions/.env.local` in (zie `.env.example`) en activeer:

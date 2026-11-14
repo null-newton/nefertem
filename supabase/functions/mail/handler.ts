@@ -6,6 +6,10 @@ const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const emailPattern = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]{2,}$/
 const toleranceSeconds = 5 * 60
+// Contact form limits: per visitor (IP) short and daily, per sender address, and for the whole site.
+export const limits = { ipShort: { max: 3, ms: 10 * 6e4 }, ipDay: { max: 10, ms: 864e5 }, address: { max: 5, ms: 36e5 }, site: { max: 50, ms: 36e5 } }
+// Client IP as forwarded by the Supabase edge gateway.
+const clientIp = (h: Headers) => (h.get('cf-connecting-ip') || h.get('x-real-ip') || h.get('x-forwarded-for')?.split(',')[0] || 'unknown').trim()
 export type Config = { supabaseUrl: string; anonKey: string; serviceKey: string; resendKey: string; mailFrom: string; webhookSecret?: string }
 type Received = { id: string; from: string; to?: string[]; cc?: string[]; reply_to?: string[]; subject?: string; html?: string | null; text?: string | null; headers?: Record<string, string>; message_id?: string; created_at?: string; attachments?: { id: string; filename?: string; content_type?: string; size?: number }[] }
 type Stored = { id: string; resend_id: string; direction: 'in' | 'out'; from_address: string; reply_to: string[]; subject: string; text_body: string; message_id: string; in_reply_to: string; created_at: string }
@@ -101,6 +105,50 @@ export function createMailHandler(c: Config, f: typeof fetch = fetch) {
     return [200, { id: saved?.id, message: 'De e-mail is verstuurd.' }] as const
   }
 
+  // Rate limiter for the public contact form. Counts are kept per hashed IP (contact_attempts), per sender address
+  // (the stored messages) and for the whole site, so one visitor cannot flood the inbox and a botnet is capped too.
+  async function rateLimit(email: string, ip: string): Promise<string | null> {
+    const now = Date.now(), ago = (ms: number) => encodeURIComponent(new Date(now - ms).toISOString())
+    const busy = 'Je hebt al enkele berichten gestuurd. Probeer het later opnieuw.'
+    const ipHash = b64(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`nefertem-contact:${ip}`)))
+    const count = async (path: string) => (await rows<unknown>(await db(path))).length
+    const [ipShort, ipDay, address, site] = await Promise.all([
+      count(`contact_attempts?select=id&ip_hash=eq.${encodeURIComponent(ipHash)}&created_at=gte.${ago(limits.ipShort.ms)}&limit=${limits.ipShort.max}`),
+      count(`contact_attempts?select=id&ip_hash=eq.${encodeURIComponent(ipHash)}&created_at=gte.${ago(limits.ipDay.ms)}&limit=${limits.ipDay.max}`),
+      count(`mail_messages?select=id&direction=eq.in&reply_to=cs.${encodeURIComponent(`{"${email}"}`)}&created_at=gte.${ago(limits.address.ms)}&limit=${limits.address.max}`),
+      count(`contact_attempts?select=id&created_at=gte.${ago(limits.site.ms)}&limit=${limits.site.max}`),
+    ])
+    if (site >= limits.site.max) return 'Het contactformulier is even erg druk. Probeer het later opnieuw of bel ons.'
+    if (ipShort >= limits.ipShort.max || ipDay >= limits.ipDay.max || address >= limits.address.max) return busy
+    const logged = await db('contact_attempts', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ ip_hash: ipHash }) })
+    if (!logged.ok) throw new Error(`db ${logged.status}`)
+    // Housekeeping: drop attempts older than a day (cheap, indexed on created_at).
+    await db(`contact_attempts?created_at=lt.${ago(864e5)}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } }).catch(() => {})
+    return null
+  }
+
+  // Public contact form: stored straight in the inbox as a received message, with the visitor as reply address.
+  async function contact(input: Record<string, unknown>, ip: string) {
+    const str = (v: unknown) => typeof v === 'string' ? v.trim() : ''
+    const name = str(input.name).replace(/[\r\n<>"]/g, ' ').slice(0, 120).trim(), email = str(input.email).toLowerCase(), subject = str(input.subject).replace(/[\r\n]/g, ' ')
+    const message = typeof input.message === 'string' ? input.message.trim() : ''
+    if (!name) return [400, { error: 'Vul je naam in.' }] as const
+    if (email.length > 254 || !emailPattern.test(email)) return [400, { error: 'Vul een geldig e-mailadres in.' }] as const
+    if (!subject || subject.length > 200) return [400, { error: 'Vul een onderwerp in (maximaal 200 tekens).' }] as const
+    if (!message || message.length > 5000) return [400, { error: 'Schrijf een bericht (maximaal 5.000 tekens).' }] as const
+    const ok = [200, { message: 'Bedankt! Je bericht is verstuurd. Veronique neemt zo snel mogelijk contact met je op.' }] as const
+    if (input.website) return ok // honeypot: bots fill every field
+    const limited = await rateLimit(email, ip)
+    if (limited) return [429, { error: limited }] as const
+    const to = c.mailFrom.match(/<([^>]+)>/)?.[1] ?? c.mailFrom
+    const saved = await db('mail_messages', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({
+      resend_id: `contact_${crypto.randomUUID()}`, direction: 'in', from_address: `${name} <${email}>`, to_addresses: [to], reply_to: [email],
+      subject: `Contactformulier: ${subject}`, text_body: message, html_body: '',
+    }) })
+    if (!saved.ok) throw new Error(`db ${saved.status}`)
+    return ok
+  }
+
   // Imports received mail that is not stored yet (newest first, stops at the first known page).
   async function sync() {
     const r = await resend('/emails/receiving?limit=50')
@@ -135,10 +183,13 @@ export function createMailHandler(c: Config, f: typeof fetch = fetch) {
     if (!c.supabaseUrl || !c.serviceKey || !c.resendKey || !c.mailFrom) return json(503, { error: 'E-mail via Resend is nog niet ingesteld.' })
     try {
       if (request.headers.has('svix-id')) { const [status, data] = await webhook(request); return json(status, data) }
-      const denied = await requireAdmin(request.headers.get('Authorization'))
-      if (denied) return json(denied[0], denied[1])
       let input: Record<string, unknown>
       try { input = await request.json() } catch { return json(400, { error: 'Ongeldige aanvraag.' }) }
+      if (!input || typeof input !== 'object') return json(400, { error: 'Ongeldige aanvraag.' })
+      // The contact form is public; every other action is for admins only.
+      if (input.action === 'contact') { const [status, data] = await contact(input, clientIp(request.headers)); return json(status, data) }
+      const denied = await requireAdmin(request.headers.get('Authorization'))
+      if (denied) return json(denied[0], denied[1])
       const [status, data] = input.action === 'send' ? await send(input)
         : input.action === 'sync' ? await sync()
         : input.action === 'attachment' ? await attachment(input.messageId, input.attachmentId)
