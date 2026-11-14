@@ -55,7 +55,7 @@ Op het inlogscherm kan een expliciete **voorbeeldomgeving** worden geopend. Deze
 
 De website en de beheeromgeving zijn beschikbaar in het Nederlands, Frans en Engels. Bij het eerste bezoek wordt de taal gekozen op basis van de browsertaal (`navigator.languages`); andere talen vallen terug op Nederlands. Bezoekers kunnen rechtsboven (en in de zijbalk van de beheeromgeving) wisselen via NL / FR / EN; die keuze wordt in de browser onthouden. Alle teksten staan in [src/i18n.tsx](src/i18n.tsx).
 
-Alleen de vaste interfaceteksten worden vertaald. Zelf ingevoerde inhoud (aanbod, berichten, de tekst onder *Over Veronique*) verschijnt zoals ingevoerd. Meldingen van de Supabase-functies (uploads en het journal) zijn Nederlands; in het Frans en Engels toont de site daarvoor een vertaalde algemene melding. De bevestigings- en nieuwsmails van het journal blijven Nederlands.
+Alleen de vaste interfaceteksten worden vertaald. Zelf ingevoerde inhoud (aanbod, berichten) verschijnt zoals ingevoerd. De tekst onder *Over Veronique* kun je in Praktijkgegevens ook in het Frans en Engels schrijven (na [004_about_translations.sql](supabase/migrations/004_about_translations.sql)); een leeg veld toont de Nederlandse tekst. Meldingen van de Supabase-functies (uploads en het journal) zijn Nederlands; in het Frans en Engels toont de site daarvoor een vertaalde algemene melding. De bevestigings- en nieuwsmails van het journal blijven Nederlands.
 
 ## Afbeeldingen uploaden via ImgBB
 
